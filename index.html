@@ -414,14 +414,30 @@
   .coords-row input{flex:1}
   .coords-row button{padding:0 14px;font-size:16px;background:var(--bg-soft);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer}
   .coords-row button:active{background:var(--border)}
-  .suggestions{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);z-index:200;overflow:hidden;max-height:240px;overflow-y:auto}
-  .suggestions:empty{display:none}
-  .suggestion{padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px;line-height:1.3}
-  .suggestion:last-child{border-bottom:none}
-  .suggestion:active{background:var(--bg-soft)}
-  .suggestion .name{font-weight:600;display:block}
-  .suggestion .addr{color:var(--muted);font-size:12px;display:block;margin-top:2px}
-  .suggestion .loading{color:var(--muted);font-size:13px;padding:10px 12px;text-align:center}
+  .suggestions{
+  margin-top:8px;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  max-height:240px;
+  overflow-y:auto;
+}
+.suggestions:empty{display:none}
+.suggestion{
+  padding:12px 14px;
+  cursor:pointer;
+  border-bottom:1px solid var(--border);
+  font-size:14px;
+  line-height:1.3;
+  background:var(--bg-elev);
+  transition:background .15s;
+}
+.suggestion:last-child{border-bottom:none}
+.suggestion:hover{background:var(--bg-soft)}
+.suggestion:active{background:var(--bg-soft)}
+.suggestion .name{font-weight:600;display:block}
+.suggestion .addr{color:var(--muted);font-size:12px;display:block;margin-top:2px}
 
   .map-links{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
   .map-links a{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--accent);text-decoration:none;padding:4px 8px;border:1px solid var(--border);border-radius:8px}
@@ -859,6 +875,39 @@ html{
 @media (prefers-reduced-motion: reduce){
   .fab{ animation: none; }
   .card, .place-item, .act{ animation: none; }
+}
+
+/* Явный row внутри сегментов */
+.segment .row{
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 8px !important;
+  align-items: flex-start !important;
+}
+.segment .row > *{
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+}
+
+/* Явный coords-row внутри row */
+.segment .coords-row{
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 6px !important;
+  align-items: stretch !important;
+}
+.segment .coords-row > input{
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+.segment .coords-row > button{
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
+
+/* Запрещаем .suggestions появляться внутри .segment (на всякий) */
+.segment .suggestions{
+  display: none !important;
 }
 </style>
 </head>
@@ -2053,6 +2102,85 @@ function attachSwipe(el){
   }, true);
 }
 
+/* =========================================================
+   ГЕОКОДИНГ БИЛЕТОВ
+   =========================================================
+   Точки from/to геокодируются через Nominatim и кэшируются
+   в trip._ticketGeoCache. Чтобы не нарушать лимит 1 запрос/сек,
+   делаем последовательную очередь с задержкой 1100 мс.
+*/
+function ticketGeoCacheKey(tripId){ return 'ticketGeo_' + tripId; }
+
+function loadTicketGeoCache(trip){
+  if(trip._ticketGeoCache) return trip._ticketGeoCache;
+  try{
+    const raw = localStorage.getItem(ticketGeoCacheKey(trip.id));
+    trip._ticketGeoCache = raw ? JSON.parse(raw) : {};
+  }catch(e){
+    trip._ticketGeoCache = {};
+  }
+  return trip._ticketGeoCache;
+}
+
+function saveTicketGeoCache(trip){
+  try{
+    localStorage.setItem(ticketGeoCacheKey(trip.id), JSON.stringify(trip._ticketGeoCache || {}));
+  }catch(e){}
+}
+
+/* Собираем все уникальные точки из билетов */
+function collectTicketPoints(trip){
+  const set = new Set();
+  (trip.tickets||[]).forEach(tk => {
+    (tk.segments||[]).forEach(sg => {
+      if(sg.from) set.add(sg.from.trim());
+      if(sg.to) set.add(sg.to.trim());
+    });
+  });
+  return Array.from(set).filter(Boolean);
+}
+
+/* Асинхронный геокодинг. callback вызывается, если что-то догрузилось. */
+async function geocodeTicketPoints(trip, callback){
+  const cache = loadTicketGeoCache(trip);
+  const all = collectTicketPoints(trip);
+  const missing = all.filter(name => !cache[name]);
+
+  if(!missing.length){
+    if(callback) callback();
+    return;
+  }
+
+  let changed = false;
+
+  for(const name of missing){
+    try{
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru&q=${encodeURIComponent(name)}`;
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if(data.length){
+        cache[name] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+        changed = true;
+      } else {
+        // Помечаем как «не найдено», чтобы не дёргать снова
+        cache[name] = null;
+      }
+    }catch(e){
+      console.warn('Геокодинг не удался:', name, e);
+      // Не помечаем как null — попробуем в следующий раз
+    }
+    // Лимит Nominatim: 1 запрос в секунду
+    await new Promise(r => setTimeout(r, 1100));
+  }
+
+  if(changed){
+    trip._ticketGeoCache = cache;
+    saveTicketGeoCache(trip);
+    if(callback) callback();
+  }
+}
+
 /* =============== ВКЛАДКА «КАРТА» =============== */
 let tripMap = null;
 let tripMapLayer = null;
@@ -2090,12 +2218,32 @@ function renderMapTab(trip){
       <div id="map-status-wrap"></div>
     </div>`;
 
+    // Ждём Leaflet
   let tries = 0;
   const wait = setInterval(()=>{
     tries++;
     if(typeof L !== 'undefined'){
       clearInterval(wait);
       initTripMap(trip);
+
+      // После инициализации карты — догружаем координаты билетов
+      const status = document.getElementById('map-status-wrap');
+      const missingCount = collectTicketPoints(trip).filter(n => !loadTicketGeoCache(trip)[n]).length;
+      if(missingCount > 0 && status){
+        status.innerHTML = `<div class="map-status">🌍 Загружаю координаты билетов (${missingCount})…</div>`;
+      }
+      geocodeTicketPoints(trip, ()=>{
+        // Перерисовываем маркеры, когда что-то догрузилось
+        const t2 = ensureTrip(trips.find(x => x.id === trip.id));
+        renderMapTabMarkers(t2);
+        DB.save(trips);
+      }).then(()=>{
+        // После завершения всех запросов — обновляем статус
+        const t2 = ensureTrip(trips.find(x => x.id === trip.id));
+        if(state.tripTab === 'map'){
+          renderMapTabMarkers(t2);
+        }
+      });
     } else if(tries > 50){
       clearInterval(wait);
       document.getElementById('map-status-wrap').innerHTML = `<div class="map-status">⚠️ Не удалось загрузить карту.</div>`;
@@ -2124,23 +2272,55 @@ function setMapFilter(f){
 }
 function collectMapPoints(trip){
   const out = [];
+
   (trip.lodging||[]).forEach(l => {
     if(l.lat!=null && l.lng!=null){
-      out.push({ type:'lodging', id:l.id, lat:l.lat, lng:l.lng, title:l.title||'Жильё', subtitle:l.address||'', date:l.checkInDate||'', emoji:'🏠', color:'#2aabee' });
+      out.push({
+        type:'lodging', id:l.id, lat:l.lat, lng:l.lng,
+        title:l.title||'Жильё', subtitle:l.address||'',
+        date:l.checkInDate||'', emoji:'🏠', color:'#2aabee'
+      });
     }
   });
+
   (trip.activities||[]).forEach(a => {
     if(a.lat!=null && a.lng!=null){
-      out.push({ type:'act', id:a.id, lat:a.lat, lng:a.lng, title:a.title||'Место', subtitle:a.notes||'', date:a.date||'', time:a.time||'', emoji: placeTypeIcon(a.type), color:'#af52de' });
+      out.push({
+        type:'act', id:a.id, lat:a.lat, lng:a.lng,
+        title:a.title||'Место', subtitle:a.notes||'',
+        date:a.date||'', time:a.time||'',
+        emoji: placeTypeIcon(a.type), color:'#af52de'
+      });
     }
   });
-  (trip.tickets||[]).forEach(tk => {
+
+  // Билеты — используем кэш геокодинга
+  const cache = loadTicketGeoCache(trip);
+    (trip.tickets||[]).forEach(tk => {
     (tk.segments||[]).forEach((sg, i) => {
-      if(sg.lat!=null && sg.lng!=null){
-        out.push({ type:'ticket', id: tk.id + ':' + i, lat:sg.lat, lng:sg.lng, title:`${sg.from||'—'} → ${sg.to||'—'}`, subtitle: ticketLabel(tk.type), date: sg.departDate || '', time: sg.departTime || '', emoji: ticketIcon(tk.type), color:'#34c759' });
+      if(sg.fromLat != null && sg.fromLng != null && sg.from){
+        out.push({
+          type:'ticket', id: tk.id + ':' + i + ':from',
+          lat: sg.fromLat, lng: sg.fromLng,
+          title: sg.from,
+          subtitle: `${ticketLabel(tk.type)} · откуда${sg.departTime ? ' · ' + sg.departTime : ''}`,
+          date: sg.departDate || '', time: sg.departTime || '',
+          emoji: ticketIcon(tk.type), color:'#34c759'
+        });
+      }
+      if(sg.toLat != null && sg.toLng != null && sg.to){
+        out.push({
+          type:'ticket', id: tk.id + ':' + i + ':to',
+          lat: sg.toLat, lng: sg.toLng,
+          title: sg.to,
+          subtitle: `${ticketLabel(tk.type)} · куда${sg.arriveTime ? ' · ' + sg.arriveTime : ''}`,
+          date: sg.arriveDate || '', time: sg.arriveTime || '',
+          emoji: '🏁', color:'#34c759'
+        });
       }
     });
   });
+
   return out;
 }
 function renderMapTabMarkers(trip){
@@ -2251,6 +2431,25 @@ function renderRoutes(trip){
     const color = state.routeDay === null ? ROUTE_COLORS[idx % ROUTE_COLORS.length] : '#2aabee';
     const latlngs = route.points.map(p=>[p.lat, p.lng]);
     L.polyline(latlngs, { color, weight: 4, opacity: 0.85 }).addTo(tripMapLayer);
+        // Пунктирные линии билетов этого дня
+    const tks = (trip.tickets||[]).filter(tk =>
+      (tk.segments||[]).some(sg => sg.departDate === route.day || sg.arriveDate === route.day)
+    );
+    const geoCache = loadTicketGeoCache(trip);
+    tks.forEach(tk => {
+      (tk.segments||[]).forEach(sg => {
+        const a = sg.from ? geoCache[sg.from.trim()] : null;
+        const b = sg.to ? geoCache[sg.to.trim()] : null;
+        if(a && b){
+          L.polyline([a, b], {
+            color: '#34c759',
+            weight: 3,
+            opacity: 0.7,
+            dashArray: '8 8'
+          }).addTo(tripMapLayer);
+        }
+      });
+    });
     route.points.forEach((p, i) => {
       const isFirst = i === 0;
       let label;
@@ -2471,15 +2670,23 @@ function searchLodgingAddress(){
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
       if(!data.length){ box.innerHTML = '<div class="loading">Ничего не найдено</div>'; return; }
-      box.innerHTML = data.map(d => {
+            box.innerHTML = data.map((d, idx) => {
         const name = (d.display_name||'').split(',')[0];
         const addr = (d.display_name||'').split(',').slice(1).join(',').trim();
-        const lat = parseFloat(d.lat), lng = parseFloat(d.lon);
-        return `<div class="suggestion" onclick='pickLodgingSuggestion(${lat}, ${lng}, ${JSON.stringify(d.display_name||'').replace(/'/g,"&#39;")})'>
+        return `<div class="suggestion" data-idx="${idx}">
           <span class="name">${esc(name)}</span>
           <span class="addr">${esc(addr)}</span>
         </div>`;
       }).join('');
+
+      box.querySelectorAll('.suggestion').forEach((el, idx) => {
+        el.addEventListener('click', ()=>{
+          const d = data[idx];
+          const lat = parseFloat(d.lat);
+          const lng = parseFloat(d.lon);
+          pickLodgingSuggestion(lat, lng, d.display_name || '');
+        });
+      });
     }catch(e){
       if(e.name === 'AbortError') return;
       box.innerHTML = '<div class="loading">Ошибка поиска.</div>';
@@ -2576,20 +2783,46 @@ function ticketCard(t, trip){
 }
 function openTicketModal(id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+  state._editingTicketId = id || null;
   const t = id ? (trip.tickets||[]).find(x=>x.id===id) : null;
   const isNew = !t;
-  state.ticketSegments = t ? (t.segments||[]).map(sg => ({ ...sg })) : [ emptySegment(trip) ];
+
+  // Если открываем из модалки поиска — берём общие поля из черновика
+  const draft = state._ticketDraft || {};
+    state.ticketSegments = t
+    ? (t.segments||[]).map(sg => ({
+        id: sg.id || uid(),
+        from: sg.from || '', to: sg.to || '',
+        fromLat: (typeof sg.fromLat === 'number') ? sg.fromLat : null,
+        fromLng: (typeof sg.fromLng === 'number') ? sg.fromLng : null,
+        toLat: (typeof sg.toLat === 'number') ? sg.toLat : null,
+        toLng: (typeof sg.toLng === 'number') ? sg.toLng : null,
+        departDate: sg.departDate || '', departTime: sg.departTime || '',
+        arriveDate: sg.arriveDate || '', arriveTime: sg.arriveTime || '',
+        carrier: sg.carrier || '', number: sg.number || '', seat: sg.seat || ''
+      }))
+    : [ emptySegment(trip) ];
   if(!state.ticketSegments.length) state.ticketSegments = [ emptySegment(trip) ];
   const typeOptions = TICKET_TYPES.map(tt => `<option value="${tt.id}" ${t&&t.type===tt.id?'selected':''}>${tt.icon} ${tt.label}</option>`).join('');
   openModal(`
     <div class="modal-head"><h3>${isNew ? 'Новый билет' : 'Редактировать билет'}</h3><button class="btn-ghost" onclick="closeModal()">Готово</button></div>
     <div class="modal-body">
-      <div><label>Тип</label><select id="tk-type">${typeOptions}</select></div>
+      <div><label>Тип</label><select id="tk-type">
+  ${TICKET_TYPES.map(tt => `<option value="${tt.id}" ${
+    (draft.type || (t && t.type) || 'plane') === tt.id ? 'selected' : ''
+  }>${tt.icon} ${tt.label}</option>`).join('')}
+</select></div>
       <div class="row">
-        <div><label>Перевозчик</label><input id="tk-carrier" placeholder="Аэрофлот / РЖД" value="${t?esc(t.carrier||''):''}" /></div>
-        <div><label>Номер брони</label><input id="tk-ticket-number" placeholder="ABC123" value="${t?esc(t.ticketNumber||''):''}" /></div>
-      </div>
-      <div><label>Цена всего билета, ₽</label><input id="tk-price" type="number" min="0" step="0.01" value="${t&&t.price?t.price:''}" /></div>
+        <div><label>Перевозчик</label><input id="tk-carrier" placeholder="Аэрофлот / РЖД" value="${
+  draft.carrier !== undefined ? esc(draft.carrier) : (t ? esc(t.carrier||'') : '')
+}" /></div>
+<div><label>Номер брони</label><input id="tk-ticket-number" placeholder="ABC123" value="${
+  draft.ticketNumber !== undefined ? esc(draft.ticketNumber) : (t ? esc(t.ticketNumber||'') : '')
+}" /></div>
+</div>
+      <div><label>Цена всего билета, ₽</label><input id="tk-price" type="number" min="0" step="0.01" value="${
+  draft.price !== undefined ? draft.price : (t && t.price ? t.price : '')
+}" /></div>
       <div>
         <label>Сегменты маршрута</label>
         <div class="segments" id="tk-segments"></div>
@@ -2598,13 +2831,22 @@ function openTicketModal(id){
           <button class="btn-mini" type="button" onclick="addReturnSegment()">⇄ Туда-обратно</button>
         </div>
       </div>
-      <div><label>Ссылка на бронь</label><input id="tk-link" placeholder="https://..." value="${t?esc(t.link||''):''}" /></div>
-      <div><label>Заметки</label><textarea id="tk-notes" rows="2">${t?esc(t.notes||''):''}</textarea></div>
+      <div><label>Ссылка на бронь</label><input id="tk-link" placeholder="https://..." value="${
+  draft.link !== undefined ? esc(draft.link) : (t ? esc(t.link||'') : '')
+}" /></div>
+      <div><label>Заметки</label><textarea id="tk-notes" rows="2">${
+  draft.notes !== undefined ? esc(draft.notes) : (t ? esc(t.notes||'') : '')
+}</textarea></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);margin-top:4px">
         <input type="checkbox" id="tk-add-expense" style="width:auto;margin:0" ${isNew?'checked':''} />
         Добавить стоимость в расходы
       </label>
     </div>
+    <div class="row" style="margin-top:8px">
+  <button class="btn-mini" type="button" onclick="closeModal(); setTripTab('map');">
+    🗺 Открыть на карте
+  </button>
+</div>
     <div class="modal-foot">
       ${t?`<button class="btn btn-danger" onclick="deleteTicket('${t.id}')">Удалить</button>`:''}
       <button class="btn" onclick="saveTicket('${t?t.id:''}')">Сохранить</button>
@@ -2612,7 +2854,15 @@ function openTicketModal(id){
   renderTicketSegments();
 }
 function emptySegment(trip){
-  return { id: uid(), from:'', to:'', departDate: trip.start || '', departTime:'', arriveDate:'', arriveTime:'', carrier:'', number:'', seat:'' };
+  return {
+    id: uid(),
+    from:'', to:'',
+    fromLat:null, fromLng:null,
+    toLat:null, toLng:null,
+    departDate: trip.start || '', departTime:'',
+    arriveDate:'', arriveTime:'',
+    carrier:'', number:'', seat:''
+  };
 }
 function renderTicketSegments(){
   const box = document.getElementById('tk-segments');
@@ -2626,9 +2876,27 @@ function renderTicketSegments(){
         <span>${title}</span>
         ${state.ticketSegments.length > 1 ? `<button type="button" class="del-seg" onclick="removeTicketSegment(${i})">✕</button>` : ''}
       </div>
-      <div class="row">
-        <div><label>Откуда</label><input data-k="from" data-i="${i}" value="${esc(sg.from||'')}" placeholder="Москва" /></div>
-        <div><label>Куда</label><input data-k="to" data-i="${i}" value="${esc(sg.to||'')}" placeholder="Стамбул" /></div>
+            <div class="row">
+        <div>
+          <label>Откуда</label>
+          <div class="coords-row">
+            <input data-k="from" data-i="${i}" value="${esc(sg.from||'')}" placeholder="Москва" />
+            <button type="button" onclick="openTicketPointSearch(${i}, 'from')" title="Указать координаты">📍</button>
+          </div>
+          <div class="line small" style="font-size:11px;color:var(--muted);margin-top:2px">
+            ${sg.fromLat != null ? `✓ ${sg.fromLat.toFixed(3)}, ${sg.fromLng.toFixed(3)}` : '— нет координат'}
+          </div>
+        </div>
+        <div>
+          <label>Куда</label>
+          <div class="coords-row">
+            <input data-k="to" data-i="${i}" value="${esc(sg.to||'')}" placeholder="Стамбул" />
+            <button type="button" onclick="openTicketPointSearch(${i}, 'to')" title="Указать координаты">📍</button>
+          </div>
+          <div class="line small" style="font-size:11px;color:var(--muted);margin-top:2px">
+            ${sg.toLat != null ? `✓ ${sg.toLat.toFixed(3)}, ${sg.toLng.toFixed(3)}` : '— нет координат'}
+          </div>
+        </div>
       </div>
       <div class="row">
         <div><label>Отправление</label><input data-k="departDate" data-i="${i}" type="date" value="${esc(sg.departDate||'')}" /></div>
@@ -2676,7 +2944,197 @@ function removeTicketSegment(i){
   state.ticketSegments.splice(i, 1);
   renderTicketSegments();
 }
+
+/* =========================================================
+   ПОИСК ТОЧКИ БИЛЕТА (from/to)
+   ========================================================= */
+let ticketPointAbort = null;
+let ticketPointTimer = null;
+
+function openTicketPointSearch(segmentIndex, field){
+  // Сначала синхронизируем все поля сегментов из DOM в state
+  const box = document.getElementById('tk-segments');
+  if(box){
+    box.querySelectorAll('input[data-k]').forEach(el => {
+      const i = parseInt(el.dataset.i, 10);
+      const k = el.dataset.k;
+      if(state.ticketSegments[i]) state.ticketSegments[i][k] = el.value;
+    });
+  }
+
+  // Также синхронизируем общие поля билета
+  const tkType = document.getElementById('tk-type');
+  const tkCarrier = document.getElementById('tk-carrier');
+  const tkNumber = document.getElementById('tk-ticket-number');
+  const tkPrice = document.getElementById('tk-price');
+  const tkLink = document.getElementById('tk-link');
+  const tkNotes = document.getElementById('tk-notes');
+  state._ticketDraft = {
+    type: tkType ? tkType.value : 'other',
+    carrier: tkCarrier ? tkCarrier.value.trim() : '',
+    ticketNumber: tkNumber ? tkNumber.value.trim() : '',
+    price: tkPrice ? parseFloat(tkPrice.value) || 0 : 0,
+    link: tkLink ? tkLink.value.trim() : '',
+    notes: tkNotes ? tkNotes.value.trim() : ''
+  };
+
+  const sg = state.ticketSegments[segmentIndex];
+  if(!sg) return;
+  const curValue = sg[field] || '';
+  const curLat = sg[field + 'Lat'];
+  const curLng = sg[field + 'Lng'];
+
+  openModal(`
+    <div class="modal-head">
+      <h3>📍 Точка «${field === 'from' ? 'Откуда' : 'Куда'}»</h3>
+      <button class="btn-ghost" onclick="closeTicketPointSearch()">Отмена</button>
+    </div>
+    <div class="modal-body">
+      <label>Название города или аэропорта</label>
+<div class="coords-row">
+  <input id="tp-query" placeholder="Например: Шереметьево, Москва" value="${esc(curValue)}" autocomplete="off" />
+  <button type="button" onclick="runTicketPointSearch(${segmentIndex}, '${field}')">🔍</button>
+</div>
+<div class="suggestions" id="tp-suggestions"></div>
+      ${curLat != null ? `
+        <p class="muted" style="margin:0;font-size:12px">
+          Текущие координаты: ${curLat.toFixed(4)}, ${curLng.toFixed(4)}
+        </p>
+      ` : ''}
+      <p class="muted" style="margin:0;font-size:12px">
+        Выбери точку из подсказок — координаты сохранятся в билете.
+      </p>
+    </div>
+    <div class="modal-foot">
+      ${curLat != null ? `<button class="btn btn-danger" onclick="clearTicketPoint(${segmentIndex}, '${field}')">Убрать координаты</button>` : ''}
+      <button class="btn" onclick="closeTicketPointSearch()">Готово</button>
+    </div>
+  `);
+
+  const input = document.getElementById('tp-query');
+  if(input){
+    input.addEventListener('input', ()=> runTicketPointSearch(segmentIndex, field));
+    input.addEventListener('keydown', e=>{
+      if(e.key === 'Enter'){ e.preventDefault(); runTicketPointSearch(segmentIndex, field); }
+    });
+  }
+}
+
+function runTicketPointSearch(segmentIndex, field){
+  const input = document.getElementById('tp-query');
+  const box = document.getElementById('tp-suggestions');
+  if(!input || !box) return;
+  const q = input.value.trim();
+  if(q.length < 3){ box.innerHTML = ''; return; }
+
+  if(ticketPointAbort) ticketPointAbort.abort();
+  clearTimeout(ticketPointTimer);
+
+  ticketPointTimer = setTimeout(async ()=>{
+    box.innerHTML = '<div class="loading">Ищу...</div>';
+    ticketPointAbort = new AbortController();
+    try{
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ru&q=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { signal: ticketPointAbort.signal, headers: { 'Accept': 'application/json' } });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if(!data.length){ box.innerHTML = '<div class="loading">Ничего не найдено</div>'; return; }
+            box.innerHTML = data.map((d, idx) => {
+        const name = (d.display_name||'').split(',')[0];
+        const addr = (d.display_name||'').split(',').slice(1).join(',').trim();
+        return `<div class="suggestion" data-idx="${idx}">
+          <span class="name">${esc(name)}</span>
+          <span class="addr">${esc(addr)}</span>
+        </div>`;
+      }).join('');
+
+      // Навешиваем обработчики через addEventListener — так надёжнее
+      box.querySelectorAll('.suggestion').forEach((el, idx) => {
+        el.addEventListener('click', ()=>{
+          const d = data[idx];
+          const lat = parseFloat(d.lat);
+          const lng = parseFloat(d.lon);
+          pickTicketPoint(segmentIndex, field, lat, lng, d.display_name || '');
+        });
+      });
+    }catch(e){
+      if(e.name === 'AbortError') return;
+      box.innerHTML = '<div class="loading">Ошибка поиска.</div>';
+    }
+  }, 500);
+}
+
+function pickTicketPoint(segmentIndex, field, lat, lng, fullName){
+  const sg = state.ticketSegments[segmentIndex];
+  if(!sg) return;
+
+  // Если пользователь не менял название — оставляем то, что ввёл
+  const input = document.getElementById('tp-query');
+  if(input && input.value.trim()){
+    sg[field] = input.value.trim();
+  } else {
+    sg[field] = (fullName || '').split(',')[0] || sg[field];
+  }
+  sg[field + 'Lat'] = lat;
+  sg[field + 'Lng'] = lng;
+
+  // Сохраняем прямо в билет, чтобы координаты не потерялись при пересоздании state
+  const trip = ensureTrip(trips.find(t => t.id === state.tripId));
+  const ticketId = state._editingTicketId;
+  if(ticketId){
+    const ticket = trip.tickets.find(t => t.id === ticketId);
+    if(ticket && ticket.segments && ticket.segments[segmentIndex]){
+      ticket.segments[segmentIndex][field] = sg[field];
+      ticket.segments[segmentIndex][field + 'Lat'] = lat;
+      ticket.segments[segmentIndex][field + 'Lng'] = lng;
+      DB.save(trips);
+    }
+  }
+
+  renderTicketSegments();
+  closeTicketPointSearch();
+}
+
+function clearTicketPoint(segmentIndex, field){
+  const sg = state.ticketSegments[segmentIndex];
+  if(!sg) return;
+  sg[field + 'Lat'] = null;
+  sg[field + 'Lng'] = null;
+
+  const trip = ensureTrip(trips.find(t => t.id === state.tripId));
+  const ticketId = state._editingTicketId;
+  if(ticketId){
+    const ticket = trip.tickets.find(t => t.id === ticketId);
+    if(ticket && ticket.segments && ticket.segments[segmentIndex]){
+      ticket.segments[segmentIndex][field + 'Lat'] = null;
+      ticket.segments[segmentIndex][field + 'Lng'] = null;
+      DB.save(trips);
+    }
+  }
+
+  renderTicketSegments();
+  closeTicketPointSearch();
+}
+
+function closeTicketPointSearch(){
+  // Возвращаемся к модалке билета
+  openTicketModalAgain();
+}
+
+function openTicketModalAgain(){
+  // Перерисовываем модалку билета с текущими сегментами
+  const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+  const isNew = !state.editingTicketId;
+  // Просто заново открываем модалку билета, используя уже существующий state
+  // Мы должны знать, редактировали ли билет. Используем трюк: если state.editingId — то это
+  // активность, не билет. Для билетов сохраним отдельный маркер.
+  // Проще: восстановим модалку через openTicketModal, передав id, если он был.
+  const id = state._editingTicketId || null;
+  openTicketModal(id);
+}
+
 function saveTicket(id){
+    state._ticketDraft = null;
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   const box = document.getElementById('tk-segments');
   if(box){
@@ -2697,9 +3155,13 @@ function saveTicket(id){
   if(!validSegs.length){ alert('Заполни хотя бы один сегмент'); return; }
   const data = {
     type, carrier, ticketNumber, price, link, notes,
-    segments: state.ticketSegments.map(sg => ({
+        segments: state.ticketSegments.map(sg => ({
       id: sg.id || uid(),
       from: sg.from || '', to: sg.to || '',
+      fromLat: (typeof sg.fromLat === 'number') ? sg.fromLat : null,
+      fromLng: (typeof sg.fromLng === 'number') ? sg.fromLng : null,
+      toLat: (typeof sg.toLat === 'number') ? sg.toLat : null,
+      toLng: (typeof sg.toLng === 'number') ? sg.toLng : null,
       departDate: sg.departDate || '', departTime: sg.departTime || '',
       arriveDate: sg.arriveDate || '', arriveTime: sg.arriveTime || '',
       carrier: sg.carrier || '', number: sg.number || '', seat: sg.seat || ''
@@ -3517,6 +3979,7 @@ function closeModal(){
     state.editingId=null;
     state.tempChecklist=null;
     state.ticketSegments=[];
+    state._ticketDraft = null;
     modalCloseTimer = null;
   }, 300);
 }
@@ -3931,13 +4394,13 @@ function downloadJSON(data, filename){
 }
 function exportAll(){
   if(!trips.length){ alert('Нет поездок'); return; }
-  downloadJSON({ app:'trips-planner', version:11, exportedAt:new Date().toISOString(), trips }, `trips-all-${todayISO()}.json`);
+  downloadJSON({ app:'trips-planner', version:12, exportedAt:new Date().toISOString(), trips }, `trips-all-${todayISO()}.json`);
   closeModal();
 }
 function exportTrip(id){
   const trip = ensureTrip(trips.find(t=>t.id===id));
   if(!trip) return;
-  downloadJSON({ app:'trips-planner', version:11, exportedAt:new Date().toISOString(), trips:[trip] }, `trip-${(trip.title||'trip').replace(/[^\wа-яА-Я\-]+/g,'_').slice(0,40)}-${todayISO()}.json`);
+  downloadJSON({ app:'trips-planner', version:1, exportedAt:new Date().toISOString(), trips:[trip] }, `trip-${(trip.title||'trip').replace(/[^\wа-яА-Я\-]+/g,'_').slice(0,40)}-${todayISO()}.json`);
   closeModal();
 }
 const importInput = document.getElementById('import-file');
@@ -4021,8 +4484,13 @@ function normalizeImport(data){
           id: tk.id || uid(), type: tk.type || 'other',
           ticketNumber: String(tk.ticketNumber || ''), carrier: String(tk.carrier || ''),
           price: Number(tk.price) || 0, link: String(tk.link || ''), notes: String(tk.notes || ''),
-          segments: tk.segments.map(sg => ({
-            id: sg.id || uid(), from: String(sg.from || ''), to: String(sg.to || ''),
+                    segments: tk.segments.map(sg => ({
+            id: sg.id || uid(),
+            from: String(sg.from || ''), to: String(sg.to || ''),
+            fromLat: (typeof sg.fromLat === 'number') ? sg.fromLat : null,
+            fromLng: (typeof sg.fromLng === 'number') ? sg.fromLng : null,
+            toLat: (typeof sg.toLat === 'number') ? sg.toLat : null,
+            toLng: (typeof sg.toLng === 'number') ? sg.toLng : null,
             departDate: String(sg.departDate || ''), departTime: String(sg.departTime || ''),
             arriveDate: String(sg.arriveDate || ''), arriveTime: String(sg.arriveTime || ''),
             carrier: String(sg.carrier || ''), number: String(sg.number || ''), seat: String(sg.seat || '')
@@ -4100,15 +4568,23 @@ function searchAddress(){
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
       if(!data.length){ box.innerHTML = '<div class="loading">Ничего не найдено</div>'; return; }
-      box.innerHTML = data.map(d=>{
+            box.innerHTML = data.map((d, idx) => {
         const name = (d.display_name||'').split(',')[0];
         const addr = (d.display_name||'').split(',').slice(1).join(',').trim();
-        const lat = parseFloat(d.lat), lng = parseFloat(d.lon);
-        return `<div class="suggestion" onclick="pickSuggestion(${lat}, ${lng})">
+        return `<div class="suggestion" data-idx="${idx}">
           <span class="name">${esc(name)}</span>
           <span class="addr">${esc(addr)}</span>
         </div>`;
       }).join('');
+
+      box.querySelectorAll('.suggestion').forEach((el, idx) => {
+        el.addEventListener('click', ()=>{
+          const d = data[idx];
+          const lat = parseFloat(d.lat);
+          const lng = parseFloat(d.lon);
+          pickSuggestion(lat, lng);
+        });
+      });
     }catch(e){
       if(e.name === 'AbortError') return;
       box.innerHTML = '<div class="loading">Ошибка поиска.</div>';
@@ -4150,9 +4626,10 @@ function migratePrepaidExpenses(){
 }
 
 /* =============== СТАРТ =============== */
-window.addEventListener('error', (e)=>{
-  document.body.innerHTML = '<div style="padding:20px;font-family:monospace;font-size:14px;color:#c0392b;background:#fff"><b>ОШИБКА:</b><br>' + (e.message || 'unknown') + '<br><br>Файл: ' + (e.filename || '') + '<br>Строка: ' + (e.lineno || '') + ':' + (e.colno || '') + '</div>';
-});
+trips.forEach(ensureTrip);
+migratePrepaidExpenses();
+DB.save(trips);
+render();
 
 /* =============== SERVICE WORKER =============== */
 if ('serviceWorker' in navigator) {
@@ -4162,21 +4639,6 @@ if ('serviceWorker' in navigator) {
       (err) => console.error('Ошибка SW:', err)
     );
   });
-}
-
-try {
-  trips.forEach(ensureTrip);
-  migratePrepaidExpenses();
-  DB.save(trips);
-  render();
-  // Если дошли сюда — всё ок
-  setTimeout(()=>{
-    if(document.getElementById('app').innerHTML.length < 50){
-      document.body.innerHTML = '<div style="padding:20px;font-family:monospace;font-size:14px;color:#c0392b;background:#fff"><b>render() отработал, но ничего не отрисовал.</b><br>app.innerHTML.length = ' + document.getElementById('app').innerHTML.length + '</div>';
-    }
-  }, 100);
-} catch(e) {
-  document.body.innerHTML = '<div style="padding:20px;font-family:monospace;font-size:14px;color:#c0392b;background:#fff"><b>ОШИБКА в коде:</b><br>' + e.message + '<br><br>Стек:<br>' + (e.stack || '').split('\n').slice(0,5).join('<br>') + '</div>';
 }
 </script>
 </body>
