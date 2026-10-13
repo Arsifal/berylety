@@ -1497,6 +1497,7 @@ function renderTrip(){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   if(!trip){ state.view='list'; return render(); }
 
+  // Рисуем каркас поездки только один раз
   app.innerHTML = `
     <header>
       <button class="back" onclick="state.view='list';render()">‹</button>
@@ -1504,26 +1505,40 @@ function renderTrip(){
       <button class="icon-btn" onclick="openTripMenu()" title="Меню поездки">⋯</button>
       <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
     </header>
-    <div class="trip-tabs">
-      <div class="trip-tab ${state.tripTab==='plan'?'active':''}" onclick="setTripTab('plan')"><span class="ic">📋</span>План</div>
-      <div class="trip-tab ${state.tripTab==='places'?'active':''}" onclick="setTripTab('places')"><span class="ic">📍</span>Места</div>
-      <div class="trip-tab ${state.tripTab==='map'?'active':''}" onclick="setTripTab('map')"><span class="ic">🗺️</span>Карта</div>
-      <div class="trip-tab ${state.tripTab==='lodging'?'active':''}" onclick="setTripTab('lodging')"><span class="ic">🏠</span>Жильё</div>
-      <div class="trip-tab ${state.tripTab==='tickets'?'active':''}" onclick="setTripTab('tickets')"><span class="ic">✈️</span>Билеты</div>
-      <div class="trip-tab ${state.tripTab==='checklists'?'active':''}" onclick="setTripTab('checklists')"><span class="ic">🧳</span>Чек-листы</div>
-      <div class="trip-tab ${state.tripTab==='budget'?'active':''}" onclick="setTripTab('budget')"><span class="ic">💰</span>Бюджет</div>
+    <div class="trip-tabs" id="trip-tabs">
+      <div class="trip-tab ${state.tripTab==='plan'?'active':''}" data-tab="plan" onclick="setTripTab('plan')"><span class="ic">📋</span>План</div>
+      <div class="trip-tab ${state.tripTab==='places'?'active':''}" data-tab="places" onclick="setTripTab('places')"><span class="ic">📍</span>Места</div>
+      <div class="trip-tab ${state.tripTab==='map'?'active':''}" data-tab="map" onclick="setTripTab('map')"><span class="ic">🗺️</span>Карта</div>
+      <div class="trip-tab ${state.tripTab==='lodging'?'active':''}" data-tab="lodging" onclick="setTripTab('lodging')"><span class="ic">🏠</span>Жильё</div>
+      <div class="trip-tab ${state.tripTab==='tickets'?'active':''}" data-tab="tickets" onclick="setTripTab('tickets')"><span class="ic">✈️</span>Билеты</div>
+      <div class="trip-tab ${state.tripTab==='checklists'?'active':''}" data-tab="checklists" onclick="setTripTab('checklists')"><span class="ic">🧳</span>Чек-листы</div>
+      <div class="trip-tab ${state.tripTab==='budget'?'active':''}" data-tab="budget" onclick="setTripTab('budget')"><span class="ic">💰</span>Бюджет</div>
     </div>
     <div id="tab-content" style="flex:1;display:flex;flex-direction:column;min-height:0"></div>
-    ${state.tripTab==='plan' || state.tripTab==='places'
-      ? `<button class="btn fab" onclick="openActivityModal()">+</button>`
-      : state.tripTab==='lodging'
-        ? `<button class="btn fab" onclick="openLodgingModal()">+</button>`
-        : state.tripTab==='tickets'
-          ? `<button class="btn fab" onclick="openTicketModal()">+</button>`
-          : state.tripTab==='checklists'
-            ? `<button class="btn fab" onclick="openChecklistItemModal()">+</button>`
-            : ''}
+    <button class="btn fab" id="trip-fab" onclick="">+</button>
   `;
+
+  renderTripTabContent(trip);
+  updateTripFab(trip);
+
+  // Прокрутим вкладки так, чтобы активная была видна
+  requestAnimationFrame(()=>{
+    const tabsEl = document.getElementById('trip-tabs');
+    const activeTab = tabsEl ? tabsEl.querySelector('.trip-tab.active') : null;
+    if(tabsEl && activeTab){
+      const tabRect = activeTab.getBoundingClientRect();
+      const tabsRect = tabsEl.getBoundingClientRect();
+      if(tabRect.left < tabsRect.left || tabRect.right > tabsRect.right){
+        activeTab.scrollIntoView({behavior:'auto', block:'nearest', inline:'center'});
+      }
+    }
+  });
+}
+
+function renderTripTabContent(trip){
+  const c = document.getElementById('tab-content');
+  if(!c) return;
+  c.innerHTML = '';
 
   if(state.tripTab==='plan') renderPlan(trip);
   else if(state.tripTab==='places') renderPlacesTab(trip);
@@ -1534,36 +1549,54 @@ function renderTrip(){
   else renderBudgetTab(trip);
 }
 
-function setTripTab(tab){
-  // Запомнить позицию скролла вкладок
-  const tabsEl = document.querySelector('.trip-tabs');
-  const scrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
+function updateTripFab(trip){
+  const fab = document.getElementById('trip-fab');
+  if(!fab) return;
+  fab.style.display = '';
+  if(state.tripTab === 'plan' || state.tripTab === 'places'){
+    fab.setAttribute('onclick', 'openActivityModal()');
+  } else if(state.tripTab === 'lodging'){
+    fab.setAttribute('onclick', 'openLodgingModal()');
+  } else if(state.tripTab === 'tickets'){
+    fab.setAttribute('onclick', 'openTicketModal()');
+  } else if(state.tripTab === 'checklists'){
+    fab.setAttribute('onclick', 'openChecklistItemModal()');
+  } else {
+    // Бюджет и карта — FAB не нужен
+    fab.style.display = 'none';
+  }
+}
 
+function setTripTab(tab){
+  // При уходе с карты — уничтожаем её, чтобы не утекала память
   if(state.tripTab === 'map' && tab !== 'map'){
     if(tripMap){ tripMap.remove(); tripMap = null; }
     tripMapLayer = null;
   }
-  state.tripTab = tab;
-  render();
 
-  requestAnimationFrame(()=>{
-  const tabsEl = document.querySelector('.trip-tabs');
-  const activeTab = tabsEl ? tabsEl.querySelector('.trip-tab.active') : null;
-  if(tabsEl && activeTab){
-    const tabRect = activeTab.getBoundingClientRect();
-    const tabsRect = tabsEl.getBoundingClientRect();
-    if(tabRect.left < tabsRect.left || tabRect.right > tabsRect.right){
-      activeTab.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
-    }
+  state.tripTab = tab;
+
+  // Обновляем активную вкладку
+  const tabsEl = document.getElementById('trip-tabs');
+  if(tabsEl){
+    tabsEl.querySelectorAll('.trip-tab').forEach(el=>{
+      el.classList.toggle('active', el.dataset.tab === tab);
+    });
   }
-});
+
+  // Перерисовываем только контент вкладки
+  const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+  if(trip){
+    renderTripTabContent(trip);
+    updateTripFab(trip);
+  }
+}
 
   // Восстановить позицию после рендера
   requestAnimationFrame(()=>{
     const newTabsEl = document.querySelector('.trip-tabs');
     if(newTabsEl) newTabsEl.scrollLeft = scrollLeft;
   });
-}
 
 /* =============== ПОГОДА =============== */
 const WEATHER_EMOJI = { 0:'☀️', 1:'🌤️', 2:'⛅', 3:'☁️', 45:'🌫️', 48:'🌫️', 51:'🌦️', 53:'🌦️', 55:'🌦️', 56:'🌧️', 57:'🌧️', 61:'🌧️', 63:'🌧️', 65:'🌧️', 66:'🌧️', 67:'🌧️', 71:'🌨️', 73:'🌨️', 75:'❄️', 77:'❄️', 80:'🌦️', 81:'🌧️', 82:'⛈️', 85:'🌨️', 86:'❄️', 95:'⛈️', 96:'⛈️', 99:'⛈️' };
