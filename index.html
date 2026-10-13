@@ -26,67 +26,59 @@
 </script>
 
 <style>
-  :root,
+    :root,
   [data-theme="light"]{
-    --bg:#f7f9fb;
-    --bg-soft:#eef2f6;
+    color-scheme: light;
+    --bg:#fbf8f0;
+    --bg-soft:#f3eddc;
     --bg-elev:#ffffff;
-    --text:#0f2540;
-    --muted:#6b7a90;
-    --accent:#0b6b3a;
-    --accent-2:#095a31;
-    --accent-soft:#e6f2ec;
-    --border:#e2e8ef;
+    --text:#0c3b2c;
+    --muted:#5c7a6d;
+    --accent:#0d5c3f;
+    --accent-2:#0a4a32;
+    --accent-soft:#e2efe6;
+    --border:#e6ddc4;
     --radius:18px;
     --radius-sm:12px;
     --radius-lg:24px;
-    --danger:#c0392b;
-    --overlay:rgba(15,37,64,.5);
-    --shadow:0 4px 20px rgba(15,37,64,.06);
-    --shadow-lg:0 12px 32px rgba(15,37,64,.10);
-    --shadow-fab:0 8px 24px rgba(11,107,58,.35);
-    --warn:#d99a1e;
+    --danger:#b23a2f;
+    --overlay:rgba(12,59,44,.5);
+    --shadow:0 4px 20px rgba(12,59,44,.06);
+    --shadow-lg:0 12px 32px rgba(12,59,44,.10);
+    --shadow-fab:0 8px 24px rgba(13,92,63,.35);
+    --warn:#c8951e;
     --ok:#1a9e5c;
     --font-head:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
   }
   [data-theme="dark"]{
-    --bg:#0d1520;
-    --bg-soft:#15202f;
-    --bg-elev:#1a2634;
-    --text:#e8eef6;
-    --muted:#7a8798;
-    --accent:#2ecc71;
-    --accent-2:#3ddc84;
-    --accent-soft:#15321f;
-    --border:#25303f;
-    --danger:#e74c3c;
-    --overlay:rgba(0,0,0,.7);
-    --shadow:0 4px 20px rgba(0,0,0,.4);
-    --shadow-lg:0 12px 32px rgba(0,0,0,.55);
-    --shadow-fab:0 8px 24px rgba(46,204,113,.35);
-    --warn:#f0b03f;
-    --ok:#2ecc71;
-  }
-  [data-theme="picky"]{
-    --bg:#fdf6f9; --bg-soft:#fbe3ed; --bg-elev:#ffffff;
-    --text:#4a1f33; --muted:#a87d8f;
-    --accent:#d95a8a; --accent-2:#c1487a; --accent-soft:#fbe3ed;
-    --border:#f0d5e2; --radius:20px; --radius-sm:14px; --radius-lg:26px;
-    --danger:#e5484d; --overlay:rgba(74,31,51,.35);
-    --shadow:0 4px 20px rgba(217,90,138,.10);
-    --shadow-lg:0 12px 32px rgba(217,90,138,.16);
-    --shadow-fab:0 8px 24px rgba(217,90,138,.4);
-    --warn:#e5974a; --ok:#3db77a;
+    color-scheme: dark;
+    --bg:#0c3b2c;
+    --bg-soft:#0a3226;
+    --bg-elev:#0f4433;
+    --text:#f5f2e8;
+    --muted:#a9c0b2;
+    --accent:#eec33a;
+    --accent-2:#f4d117;
+    --accent-soft:#2b3320;
+    --border:#1c5540;
+    --danger:#e5484d;
+    --overlay:rgba(0,0,0,.6);
+    --shadow:0 4px 20px rgba(0,0,0,.30);
+    --shadow-lg:0 12px 32px rgba(0,0,0,.42);
+    --shadow-fab:0 8px 24px rgba(238,195,58,.30);
+    --warn:#eec33a;
+    --ok:#5fd08a;
   }
   [data-theme="punk"]{
+    color-scheme: dark;
     --bg:#0f0f0f; --bg-soft:#1c1c1c; --bg-elev:#181818;
-    --text:#f0f0f0; --muted:#8a8a8a;
-    --accent:#e6c200; --accent-2:#f4d117; --accent-soft:#2b2506;
-    --border:#2a2a2a; --radius:10px; --radius-sm:8px; --radius-lg:16px;
+    --text:#f0f0f0; --muted:#9e9e9e;
+    --accent:#e6c200; --accent-2:#f4d117; --accent-soft:#4a3f0a;
+    --border:#363636; --radius:10px; --radius-sm:8px; --radius-lg:16px;
     --danger:#e5484d; --overlay:rgba(0,0,0,.8);
-    --shadow:0 4px 20px rgba(230,194,0,.10);
-    --shadow-lg:0 12px 32px rgba(0,0,0,.7);
-    --shadow-fab:0 8px 24px rgba(230,194,0,.45);
+    --shadow:0 4px 20px rgba(230,194,0,.08);
+    --shadow-lg:0 12px 32px rgba(0,0,0,.6);
+    --shadow-fab:0 8px 24px rgba(230,194,0,.4);
     --warn:#e6c200; --ok:#7fdd3f;
     --font-head:"Impact,'Arial Black',sans-serif";
   }
@@ -95,34 +87,21 @@
   [data-theme="punk"] header h1{text-transform:uppercase;letter-spacing:2px;font-family:var(--font-head)}
   [data-theme="punk"] .fab{color:#000;font-weight:900}
   [data-theme="noir"]{
+    color-scheme: dark;
     --bg:#111116; --bg-soft:#1a1a22; --bg-elev:#18181f;
-    --text:#e8e8ec; --muted:#7a7a85;
-    --accent:#c9a227; --accent-2:#dab53a; --accent-soft:#28220d;
-    --border:#2a2a33; --radius:8px; --radius-sm:6px; --radius-lg:14px;
+    --text:#e8e8ec; --muted:#9a9aa6;
+    --accent:#c9a227; --accent-2:#dab53a; --accent-soft:#3a300f;
+    --border:#353541; --radius:8px; --radius-sm:6px; --radius-lg:14px;
     --danger:#c0392b; --overlay:rgba(0,0,0,.8);
-    --shadow:0 4px 20px rgba(0,0,0,.5);
-    --shadow-lg:0 12px 32px rgba(0,0,0,.7);
-    --shadow-fab:0 8px 24px rgba(201,162,39,.4);
+    --shadow:0 4px 20px rgba(0,0,0,.4);
+    --shadow-lg:0 12px 32px rgba(0,0,0,.6);
+    --shadow-fab:0 8px 24px rgba(201,162,39,.35);
     --warn:#c9a227; --ok:#6aab5c;
     --font-head:"Georgia,'Times New Roman',serif";
   }
   [data-theme="noir"] header h1{font-family:var(--font-head);letter-spacing:1px;font-style:italic}
   [data-theme="noir"] .day-title{letter-spacing:2px;color:var(--accent)}
   [data-theme="noir"] .fab{color:#000}
-  [data-theme="oldmoney"]{
-    --bg:#f2e8d5; --bg-soft:#e8d9b8; --bg-elev:#f8f0e0;
-    --text:#3b2f2f; --muted:#8a7a5c;
-    --accent:#7a4a20; --accent-2:#8e5a2a; --accent-soft:#e8d9b8;
-    --border:#d4c5a3; --radius:12px; --radius-sm:8px; --radius-lg:18px;
-    --danger:#a33; --overlay:rgba(59,47,47,.5);
-    --shadow:0 4px 20px rgba(122,74,32,.12);
-    --shadow-lg:0 12px 32px rgba(122,74,32,.18);
-    --shadow-fab:0 8px 24px rgba(122,74,32,.45);
-    --warn:#b8860b; --ok:#5a8c3a;
-    --font-head:"Georgia,'Times New Roman',serif";
-  }
-  [data-theme="oldmoney"] header h1{font-family:var(--font-head);letter-spacing:1px;font-weight:700}
-  [data-theme="oldmoney"] .day-title{letter-spacing:1.5px;font-family:var(--font-head);font-style:italic}
 
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
@@ -917,6 +896,42 @@ html{
     margin: 0 auto;
   }
 }
+
+  /* =========================================================
+     КОНТАКТЫ И О ПРИЛОЖЕНИИ
+     ========================================================= */
+  .contacts-hero{
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    color: #fff;
+    box-shadow: var(--shadow-fab);
+    margin-bottom: 4px;
+  }
+  [data-theme="dark"] .contacts-hero{ color:#0c3b2c; }
+  .contacts-brand{
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -.3px;
+    line-height: 1.15;
+  }
+  .contacts-tagline{
+    font-size: 13px;
+    opacity: .85;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+  }
+  .contacts-version{
+    font-size: 12px;
+    opacity: .75;
+    margin-top: 8px;
+  }
+
+  /* Ссылки-пункты в стиле .menu-item — у <a> убираем подчёркивание */
+  a.menu-item{ text-decoration: none; }
+  a.menu-item:visited{ color: var(--text); }
+  a.menu-item:active{ background: var(--bg-soft); }
 </style>
 </head>
 <body>
@@ -933,16 +948,32 @@ html{
 const THEMES = [
   { id:'light', icon:'☀️', label:'Светлая' },
   { id:'dark', icon:'🌑', label:'Тёмная' },
-  { id:'picky', icon:'💅', label:'Пикми' },
   { id:'punk', icon:'🤘', label:'Панк' },
-  { id:'noir', icon:'🎩', label:'Нуар' },
-  { id:'oldmoney', icon:'📜', label:'Олдмани' }
+  { id:'noir', icon:'🎩', label:'Нуар' }
 ];
+
+/* =============== КОНТАКТЫ И О ПРИЛОЖЕНИИ =============== */
+const APP_INFO = {
+  name: 'БериЛети',
+  tagline: 'тур-компания',
+  version: '1.0',
+  // Заполни реальными данными. Пустая строка = пункт не показывается.
+  telegram: 'https://t.me/beriiletita',             // полная ссылк
+};
+
 function applyTheme(theme){
+  // Миграция устаревших тем
+  const legacy = { picky:'light', oldmoney:'light' };
+  if(legacy[theme]) theme = legacy[theme];
   document.documentElement.setAttribute('data-theme', theme);
-  const map = { light:'#f7f9fb', dark:'#0d1520', picky:'#fdf6f9', punk:'#0f0f0f', noir:'#111116', oldmoney:'#f2e8d5' };
+  const map = {
+    light:'#fbf8f0',   // кремовый — как в брендинге
+    dark:'#0c3b2c',    // тёмно-зелёный бренд
+    punk:'#0f0f0f',
+    noir:'#111116'
+  };
   const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta) meta.setAttribute('content', map[theme] || '#f7f9fb');
+  if(meta) meta.setAttribute('content', map[theme] || '#fbf8f0');
 }
 function initTheme(){
   const saved = localStorage.getItem('theme');
@@ -4047,6 +4078,10 @@ function openMenu(){
     <div class="modal-head"><h3>Меню</h3><button class="btn-ghost" onclick="closeModal()">Закрыть</button></div>
     <div class="modal-body">
       <div class="menu-list">
+        <button class="menu-item" onclick="openContactsModal()">
+          <span class="emoji">💬</span>
+          <span class="label">Связаться с нами<span class="hint"><br>${esc(APP_INFO.name)} · ${esc(APP_INFO.tagline)}</span></span>
+        </button>
         <button class="menu-item" onclick="exportAll()">
           <span class="emoji">📤</span>
           <span class="label">Экспорт всех поездок<span class="hint"><br>Скачать JSON-файл</span></span>
@@ -4055,9 +4090,98 @@ function openMenu(){
           <span class="emoji">📥</span>
           <span class="label">Импорт из файла<span class="hint"><br>Загрузить JSON</span></span>
         </button>
+        <button class="menu-item" onclick="openAboutModal()">
+          <span class="emoji">ℹ️</span>
+          <span class="label">О приложении<span class="hint"><br>Версия ${esc(APP_INFO.version)}</span></span>
+        </button>
       </div>
     </div>`);
 }
+
+function openContactsModal(){
+  const items = [];
+
+  if(APP_INFO.email){
+    const mailto = APP_INFO.email.startsWith('mailto:')
+      ? APP_INFO.email
+      : 'mailto:' + APP_INFO.email;
+    items.push(`
+      <a class="menu-item" href="${esc(mailto)}">
+        <span class="emoji">📧</span>
+        <span class="label">Почта<span class="hint"><br>${esc(APP_INFO.email.replace(/^mailto:/,''))}</span></span>
+      </a>`);
+  }
+  if(APP_INFO.telegram){
+    items.push(`
+      <a class="menu-item" href="${esc(APP_INFO.telegram)}" target="_blank" rel="noopener">
+        <span class="emoji">✈️</span>
+        <span class="label">Telegram<span class="hint"><br>${esc(APP_INFO.telegram.replace(/^https?:\/\//,''))}</span></span>
+      </a>`);
+  }
+  if(APP_INFO.whatsapp){
+    items.push(`
+      <a class="menu-item" href="${esc(APP_INFO.whatsapp)}" target="_blank" rel="noopener">
+        <span class="emoji">📱</span>
+        <span class="label">WhatsApp<span class="hint"><br>${esc(APP_INFO.whatsapp.replace(/^https?:\/\//,''))}</span></span>
+      </a>`);
+  }
+  if(APP_INFO.site){
+    items.push(`
+      <a class="menu-item" href="${esc(APP_INFO.site)}" target="_blank" rel="noopener">
+        <span class="emoji">🌐</span>
+        <span class="label">Сайт<span class="hint"><br>${esc(APP_INFO.site.replace(/^https?:\/\//,''))}</span></span>
+      </a>`);
+  }
+  if(APP_INFO.reviews){
+    items.push(`
+      <a class="menu-item" href="${esc(APP_INFO.reviews)}" target="_blank" rel="noopener">
+        <span class="emoji">⭐</span>
+        <span class="label">Отзывы<span class="hint"><br>Оставить или почитать</span></span>
+      </a>`);
+  }
+
+  openModal(`
+    <div class="modal-head">
+      <h3>Связаться с нами</h3>
+      <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
+    </div>
+    <div class="modal-body">
+      <div class="contacts-hero">
+        <div class="contacts-brand">${esc(APP_INFO.name)}</div>
+        <div class="contacts-tagline">${esc(APP_INFO.tagline)}</div>
+      </div>
+      <div class="menu-list">
+        ${items.length ? items.join('') : `<p class="muted center" style="padding:20px 0">Контакты ещё не заполнены.</p>`}
+      </div>
+    </div>`);
+}
+
+function openAboutModal(){
+  openModal(`
+    <div class="modal-head">
+      <h3>О приложении</h3>
+      <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
+    </div>
+    <div class="modal-body">
+      <div class="contacts-hero">
+        <div class="contacts-brand">${esc(APP_INFO.name)}</div>
+        <div class="contacts-tagline">${esc(APP_INFO.tagline)}</div>
+        <div class="contacts-version">Версия ${esc(APP_INFO.version)}</div>
+      </div>
+      <p class="muted" style="margin:8px 2px 0;font-size:13px;line-height:1.55">
+        Планировщик путешествий: места, маршруты, жильё, билеты, чек-листы и бюджет — всё в одном месте.
+        Данные хранятся локально на устройстве и не отправляются на сервер.
+      </p>
+      ${APP_INFO.site ? `
+        <div class="menu-list" style="margin-top:8px">
+          <a class="menu-item" href="${esc(APP_INFO.site)}" target="_blank" rel="noopener">
+            <span class="emoji">🌐</span>
+            <span class="label">Наш сайт<span class="hint"><br>${esc(APP_INFO.site.replace(/^https?:\/\//,''))}</span></span>
+          </a>
+        </div>` : ''}
+    </div>`);
+}
+
 function openTripMenu(){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   if(!trip) return;
@@ -4069,9 +4193,8 @@ function openTripMenu(){
         <button class="menu-item" onclick="openPrintModal()">
   <span class="emoji">🖨️</span>
   <span class="label">Печать / Сохранить в PDF<span class="hint"><br>Дорожная книга для печати</span></span>
-</button>
-        <button class="menu-item" onclick="exportTrip('${trip.id}')"><span class="emoji">📤</span><span class="label">Экспорт этой поездки</span></button>
         <button class="menu-item" onclick="deleteTripFromMenu('${trip.id}')"><span class="emoji">🗑️</span><span class="label">Удалить поездку</span></button>
+        <button class="menu-item" onclick="openContactsModal()"><span class="emoji">💬</span><span class="label">Связаться с нами<span class="hint"><br>${esc(APP_INFO.name)}</span></span></button>
       </div>
     </div>`);
 }
@@ -4683,6 +4806,14 @@ function migratePrepaidExpenses(){
     console.log(`Миграция предоплат: помечено ${changed} трат.`);
   }
 }
+
+/* =============== МИГРАЦИЯ ТЕМ =============== */
+(function migrateLegacyTheme(){
+  const saved = localStorage.getItem('theme');
+  if(saved === 'picky' || saved === 'oldmoney'){
+    localStorage.setItem('theme', 'light');
+  }
+})();
 
 /* =============== СТАРТ =============== */
 trips.forEach(ensureTrip);
