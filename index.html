@@ -932,6 +932,70 @@ html{
   a.menu-item{ text-decoration: none; }
   a.menu-item:visited{ color: var(--text); }
   a.menu-item:active{ background: var(--bg-soft); }
+
+    /* =========================================================
+     ВЛОЖЕНИЯ БИЛЕТОВ (PDF/изображения)
+     ========================================================= */
+  .attach-drop{
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--bg-soft);
+    color: var(--text);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .attach-drop:hover{ background: var(--border); border-color: var(--accent); }
+  .attach-drop:active{ background: var(--border); }
+  .attach-hint{
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .attach-row{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+  .attach-icon{ font-size: 22px; flex-shrink: 0; }
+  .attach-body{ flex: 1; min-width: 0; }
+  .attach-name{
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .attach-meta{
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .attach-status{ color: var(--muted); }
+  .attach-actions{ display: flex; gap: 4px; flex-shrink: 0; }
+  .attach-actions .btn-mini{
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .attach-actions .btn-mini:hover{ background: var(--border); }
+  .attach-actions .btn-mini.danger{ color: var(--danger); }
 </style>
 </head>
 <body>
@@ -951,6 +1015,90 @@ const THEMES = [
   { id:'punk', icon:'🤘', label:'Панк' },
   { id:'noir', icon:'🎩', label:'Нуар' }
 ];
+
+/* =============== ВЛОЖЕНИЯ (IndexedDB) =============== */
+const ATTACH_DB_NAME = 'berileti-attachments';
+const ATTACH_STORE   = 'files';
+const ATTACH_MAX_SIZE = 15 * 1024 * 1024; // 15 МБ
+const ATTACH_ACCEPT   = 'application/pdf,image/*';
+
+let _attachDB = null;
+function attachDB(){
+  if(_attachDB) return Promise.resolve(_attachDB);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(ATTACH_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(ATTACH_STORE)){
+        db.createObjectStore(ATTACH_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => { _attachDB = req.result; resolve(_attachDB); };
+    req.onerror   = () => reject(req.error);
+  });
+}
+function attachTx(mode){
+  return attachDB().then(db => db.transaction(ATTACH_STORE, mode).objectStore(ATTACH_STORE));
+}
+function saveAttachment(file){
+  return new Promise((resolve, reject) => {
+    if(!file) return reject(new Error('Нет файла'));
+    if(file.size > ATTACH_MAX_SIZE) return reject(new Error('Файл больше 15 МБ'));
+    const okType = file.type === 'application/pdf' || (file.type || '').startsWith('image/');
+    if(!okType) return reject(new Error('Только PDF или изображения'));
+    const id = 'att_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const rec = {
+      id, name: file.name || 'файл',
+      size: file.size, type: file.type || '',
+      blob: file, createdAt: Date.now()
+    };
+    attachTx('readwrite').then(store => {
+      const req = store.put(rec);
+      req.onsuccess = () => resolve(rec);
+      req.onerror   = () => reject(req.error);
+    }).catch(reject);
+  });
+}
+function getAttachment(id){
+  if(!id) return Promise.resolve(null);
+  return attachTx('readonly').then(store => new Promise((resolve, reject) => {
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror   = () => reject(req.error);
+  })).catch(() => null);
+}
+function deleteAttachment(id){
+  if(!id) return Promise.resolve();
+  return attachTx('readwrite').then(store => new Promise((resolve) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror   = () => resolve();
+  })).catch(() => {});
+}
+function fmtBytes(n){
+  if(n == null) return '';
+  if(n < 1024) return n + ' Б';
+  if(n < 1024*1024) return (n/1024).toFixed(1) + ' КБ';
+  return (n/1024/1024).toFixed(1) + ' МБ';
+}
+function attachIsImage(a){ return a && (a.type || '').startsWith('image/'); }
+function attachIsPdf(a){ return a && a.type === 'application/pdf'; }
+function attachIcon(a){
+  if(attachIsPdf(a)) return '📄';
+  if(attachIsImage(a)) return '🖼️';
+  return '📎';
+}
+async function openAttachment(id){
+  const a = await getAttachment(id);
+  if(!a || !a.blob){
+    alert('Файл не найден в локальном хранилище.');
+    return;
+  }
+  const url = URL.createObjectURL(a.blob);
+  window.open(url, '_blank');
+  // Даём браузеру минуту, чтобы успеть открыть, потом освобождаем
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
 
 /* =============== КОНТАКТЫ И О ПРИЛОЖЕНИИ =============== */
 const APP_INFO = {
@@ -1519,6 +1667,12 @@ function saveTripEdit(){
 function openTrip(id){ state.view='trip'; state.tripId=id; state.tripTab='plan'; render(); }
 function deleteTrip(id){
   if(!confirm('Удалить поездку?')) return;
+  const doomed = trips.find(t => t.id === id);
+  if(doomed && Array.isArray(doomed.tickets)){
+    doomed.tickets.forEach(tk => {
+      if(tk.attachmentId) deleteAttachment(tk.attachmentId);
+    });
+  }
   trips = trips.filter(t=>t.id!==id); DB.save(trips);
   state.view='list'; render();
 }
@@ -2853,8 +3007,11 @@ function ticketCard(t, trip){
   const carrierLine = t.carrier || (segs[0] && segs[0].carrier) || '';
   return `<div class="ticket-card" onclick="openTicketModal('${t.id}')">
     <div class="ticket-head">
-      <span class="type">${ticketIcon(t.type)} ${ticketLabel(t.type)}</span>
-      ${t.ticketNumber?`<span class="num">${esc(t.ticketNumber)}</span>`:''}
+            <span class="type">${ticketIcon(t.type)} ${ticketLabel(t.type)}</span>
+      <span style="display:flex;gap:6px;align-items:center">
+        ${t.attachmentId?`<span class="num" title="Есть вложение">📎</span>`:''}
+        ${t.ticketNumber?`<span class="num">${esc(t.ticketNumber)}</span>`:''}
+      </span>
     </div>
     <div class="ticket-body">
       <div class="ticket-route">${routeHtml}</div>
@@ -2924,6 +3081,11 @@ function openTicketModal(id){
       <div><label>Ссылка на бронь</label><input id="tk-link" placeholder="https://..." value="${
   draft.link !== undefined ? esc(draft.link) : (t ? esc(t.link||'') : '')
 }" /></div>
+      <div>
+        <label>PDF или изображение билета</label>
+        <input type="file" id="tk-attach-input" accept="${ATTACH_ACCEPT}" style="display:none" />
+        <div id="tk-attach-box">${ticketAttachBoxHtml(t)}</div>
+      </div>
       <div><label>Заметки</label><textarea id="tk-notes" rows="2">${
   draft.notes !== undefined ? esc(draft.notes) : (t ? esc(t.notes||'') : '')
 }</textarea></div>
@@ -2941,7 +3103,113 @@ function openTicketModal(id){
       ${t?`<button class="btn btn-danger" onclick="deleteTicket('${t.id}')">Удалить</button>`:''}
       <button class="btn" onclick="saveTicket('${t?t.id:''}')">Сохранить</button>
     </div>`);
-  renderTicketSegments();
+    renderTicketSegments();
+  bindTicketAttachControls();
+  if(t && t.attachmentId) hydrateTicketAttachBox(t.attachmentId);
+}
+function ticketAttachBoxHtml(t){
+  const aid = t && t.attachmentId;
+  if(!aid){
+    return `<button type="button" class="attach-drop" id="tk-attach-btn"
+              onclick="document.getElementById('tk-attach-input').click()">
+      📎 Прикрепить PDF или фото
+      <span class="attach-hint">PDF · JPG · PNG · до 15 МБ</span>
+    </button>`;
+  }
+  // Есть id — но самого файла может не быть (например, после импорта JSON)
+  const name = t.attachmentName || 'файл';
+  const size = t.attachmentSize ? fmtBytes(t.attachmentSize) : '';
+  const icon = (t.attachmentType && t.attachmentType.startsWith('image/')) ? '🖼️'
+             : (t.attachmentType === 'application/pdf') ? '📄' : '📎';
+  return `<div class="attach-row" id="tk-attach-row" data-aid="${esc(aid)}">
+    <span class="attach-icon">${icon}</span>
+    <div class="attach-body">
+      <div class="attach-name">${esc(name)}</div>
+      <div class="attach-meta">${size ? esc(size) : ''} <span class="attach-status">· проверяю…</span></div>
+    </div>
+    <div class="attach-actions">
+      <button type="button" class="btn-mini" onclick="openAttachment('${esc(aid)}')">Открыть</button>
+      <button type="button" class="btn-mini" onclick="document.getElementById('tk-attach-input').click()">Заменить</button>
+      <button type="button" class="btn-mini danger" onclick="removeTicketAttachment()">✕</button>
+    </div>
+  </div>`;
+}
+async function hydrateTicketAttachBox(aid){
+  const a = await getAttachment(aid);
+  const status = document.querySelector('#tk-attach-row .attach-status');
+  if(!status) return;
+  if(a){
+    status.textContent = '· на устройстве';
+    status.style.color = 'var(--ok)';
+  } else {
+    status.textContent = '· не перенесён (прикрепите заново)';
+    status.style.color = 'var(--warn)';
+  }
+}
+function bindTicketAttachControls(){
+  const input = document.getElementById('tk-attach-input');
+  if(!input) return;
+  input.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    try{
+      const rec = await saveAttachment(file);
+      // Обновляем state: если сохраняем новый билет — кладём в буфер
+      if(state.editingTicketId){
+        const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+        const t = trip.tickets.find(x => x.id === state.editingTicketId);
+        if(t){
+          if(t.attachmentId) deleteAttachment(t.attachmentId);
+          t.attachmentId   = rec.id;
+          t.attachmentName = rec.name;
+          t.attachmentSize = rec.size;
+          t.attachmentType = rec.type;
+          DB.save(trips);
+        }
+      } else {
+        // Новый билет — держим в черновике state._ticketAttachDraft
+        state._ticketAttachDraft = rec;
+      }
+      const box = document.getElementById('tk-attach-box');
+      if(box){
+        const fake = {
+          attachmentId: rec.id,
+          attachmentName: rec.name,
+          attachmentSize: rec.size,
+          attachmentType: rec.type
+        };
+        box.innerHTML = ticketAttachBoxHtml(fake);
+        hydrateTicketAttachBox(rec.id);
+      }
+    }catch(err){
+      alert(err.message || 'Не удалось сохранить файл');
+    }finally{
+      input.value = '';
+    }
+  });
+}
+function removeTicketAttachment(){
+  if(!confirm('Убрать вложение?')) return;
+  if(state.editingTicketId){
+    const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+    const t = trip.tickets.find(x => x.id === state.editingTicketId);
+    if(t && t.attachmentId){
+      deleteAttachment(t.attachmentId);
+      delete t.attachmentId;
+      delete t.attachmentName;
+      delete t.attachmentSize;
+      delete t.attachmentType;
+      DB.save(trips);
+    }
+  } else {
+    if(state._ticketAttachDraft){
+      deleteAttachment(state._ticketAttachDraft.id);
+      state._ticketAttachDraft = null;
+    }
+  }
+  const box = document.getElementById('tk-attach-box');
+  if(box) box.innerHTML = ticketAttachBoxHtml(null);
+  bindTicketAttachControls();
 }
 function emptySegment(trip){
   return {
@@ -3243,9 +3511,14 @@ function saveTicket(id){
   const addExpense = document.getElementById('tk-add-expense').checked;
   const validSegs = state.ticketSegments.filter(sg => sg.from && sg.to);
   if(!validSegs.length){ alert('Заполни хотя бы один сегмент'); return; }
-  const data = {
+    const data = {
     type, carrier, ticketNumber, price, link, notes,
-        segments: state.ticketSegments.map(sg => ({
+    // Привязка вложения
+    attachmentId:   null,
+    attachmentName: null,
+    attachmentSize: null,
+    attachmentType: null,
+    segments: state.ticketSegments.map(sg => ({
       id: sg.id || uid(),
       from: sg.from || '', to: sg.to || '',
       fromLat: (typeof sg.fromLat === 'number') ? sg.fromLat : null,
@@ -3257,6 +3530,29 @@ function saveTicket(id){
       carrier: sg.carrier || '', number: sg.number || '', seat: sg.seat || ''
     }))
   };
+    // Определяем итоговое вложение
+  let attach;
+  if(state._ticketAttachDraft){
+    attach = state._ticketAttachDraft;
+    state._ticketAttachDraft = null;
+  } else if(id){
+    const existing = trip.tickets.find(x=>x.id===id);
+    if(existing && existing.attachmentId){
+      attach = {
+        id: existing.attachmentId,
+        name: existing.attachmentName,
+        size: existing.attachmentSize,
+        type: existing.attachmentType
+      };
+    }
+  }
+  if(attach){
+    data.attachmentId   = attach.id;
+    data.attachmentName = attach.name || 'файл';
+    data.attachmentSize = attach.size || 0;
+    data.attachmentType = attach.type || '';
+  }
+
   if(id){
     const t = trip.tickets.find(x=>x.id===id);
     Object.assign(t, data);
@@ -3286,6 +3582,10 @@ function saveTicket(id){
 function deleteTicket(id){
   if(!confirm('Удалить билет?')) return;
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+  const doomed = trip.tickets.find(t => t.id === id);
+  if(doomed && doomed.attachmentId){
+    deleteAttachment(doomed.attachmentId);
+  }
   trip.tickets = trip.tickets.filter(t => t.id !== id);
   DB.save(trips);
   closeModal();
@@ -4662,10 +4962,14 @@ function normalizeImport(data){
     })) : [];
     trip.tickets = Array.isArray(t.tickets) ? t.tickets.map(tk => {
       if(Array.isArray(tk.segments)){
-        return {
+                return {
           id: tk.id || uid(), type: tk.type || 'other',
           ticketNumber: String(tk.ticketNumber || ''), carrier: String(tk.carrier || ''),
           price: Number(tk.price) || 0, link: String(tk.link || ''), notes: String(tk.notes || ''),
+          attachmentId:   tk.attachmentId   || null,
+          attachmentName: tk.attachmentName || null,
+          attachmentSize: tk.attachmentSize || null,
+          attachmentType: tk.attachmentType || null,
                     segments: tk.segments.map(sg => ({
             id: sg.id || uid(),
             from: String(sg.from || ''), to: String(sg.to || ''),
@@ -4679,7 +4983,7 @@ function normalizeImport(data){
           }))
         };
       }
-      return migrateTicket({
+            const legacy = migrateTicket({
         id: tk.id || uid(), type: tk.type || 'other',
         ticketNumber: tk.number || '', carrier: tk.carrier || '',
         price: Number(tk.price) || 0, link: String(tk.link || ''), notes: String(tk.notes || ''),
@@ -4688,6 +4992,11 @@ function normalizeImport(data){
         arriveDate: tk.arriveDate || '', arriveTime: tk.arriveTime || '',
         number: tk.number || '', seat: tk.seat || ''
       });
+      legacy.attachmentId   = tk.attachmentId   || null;
+      legacy.attachmentName = tk.attachmentName || null;
+      legacy.attachmentSize = tk.attachmentSize || null;
+      legacy.attachmentType = tk.attachmentType || null;
+      return legacy;
     }) : [];
     trip.checklists = {
       packing: (t.checklists && Array.isArray(t.checklists.packing))
