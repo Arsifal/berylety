@@ -1445,6 +1445,12 @@ html{
   [data-theme="picky"] .map-toolbar-wrap::after{
     background: linear-gradient(to left, var(--bg) 20%, transparent);
   }
+
+    /* Место, созданное билетом — тонкая подсветка */
+  .act[data-ticket-locked="1"],
+  .place-item[data-ticket-locked="1"]{
+    background: linear-gradient(90deg, var(--accent-soft), transparent 40%);
+  }
 </style>
 </head>
 <body>
@@ -1788,7 +1794,10 @@ function daysUntil(dateStr){
 }
 
 function migrateTicket(t){
-  if(Array.isArray(t.segments)) return t;
+  if(Array.isArray(t.segments)){
+    if(t.toPlan === undefined) t.toPlan = false;
+    return t;
+  }
   return {
     id: t.id || uid(),
     type: t.type || 'plane',
@@ -1797,6 +1806,7 @@ function migrateTicket(t){
     price: Number(t.price) || 0,
     link: t.link || '',
     notes: t.notes || '',
+    toPlan: t.toPlan || false,
     segments: [{
       id: uid(),
       from: t.from || '', to: t.to || '',
@@ -1829,7 +1839,7 @@ function ensureTrip(t){
   if(!t.dayEnd) t.dayEnd = '21:00';
   if(t.lunchStart === undefined) t.lunchStart = '13:00';
   if(t.lunchEnd === undefined) t.lunchEnd = '14:00';
-    if(Array.isArray(t.activities)){
+        if(Array.isArray(t.activities)){
     t.activities.forEach(a => {
       if(typeof a.duration !== 'number') a.duration = 60;
       if(!a.type) a.type = 'other';
@@ -1837,6 +1847,9 @@ function ensureTrip(t){
       if(a.openTo === undefined) a.openTo = '';
       if(typeof a.price !== 'number' || isNaN(a.price)) a.price = 0;
       if(a.addToExpense === undefined) a.addToExpense = false;
+      if(a.linkedTicketId === undefined) a.linkedTicketId = null;
+      if(a.linkedTicketRole === undefined) a.linkedTicketRole = null;
+      if(a.lockedByTicket === undefined) a.lockedByTicket = false;
     });
   }
   if(t.budget && Array.isArray(t.budget.expenses)){
@@ -2524,7 +2537,7 @@ function ticketRouteText(t){
 function actCard(a){
   const total = (a.checklist||[]).length;
   const done = (a.checklist||[]).filter(c=>c.done).length;
-  const typeIcon = placeTypeIcon(a.type);
+  const typeIcon = a.linkedTicketId ? '✈️' : placeTypeIcon(a.type);
   const duration = a.duration ? fmtDuration(a.duration) : '';
   const openHours = (a.openFrom && a.openTo) ? `${a.openFrom}–${a.openTo}` : '';
     const metaParts = [];
@@ -2538,6 +2551,9 @@ function actCard(a){
       <a href="https://yandex.ru/maps/?pt=${a.lng},${a.lat}&z=15&l=map" target="_blank" onclick="event.stopPropagation()">🟡 Яндекс</a>
       <a href="https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lng}" target="_blank" onclick="event.stopPropagation()">🔵 Google</a>
     </div>` : '';
+    const ticketBadge = a.linkedTicketId
+    ? `<div class="meta" style="color:var(--accent);font-weight:600">🔒 из билета · правится в «Билетах»</div>`
+    : '';
   return `
     <div class="act-wrap">
       <button class="act-delete" onclick="delActivity('${a.id}')">Удалить</button>
@@ -2545,6 +2561,7 @@ function actCard(a){
         <div class="pin">${typeIcon}</div>
         <div class="body">
           <b>${esc(a.title)}</b>
+          ${ticketBadge}
           ${metaLine}
           ${a.notes?`<p>${esc(a.notes)}</p>`:''}
           ${total?`<div class="check-progress">✓ ${done}/${total}</div>`:''}
@@ -2645,7 +2662,7 @@ function renderPlacesTab(trip){
   c.innerHTML = html;
 }
 function placeCard(a, assigned){
-  const typeIcon = placeTypeIcon(a.type);
+  const typeIcon = a.linkedTicketId ? '✈️' : placeTypeIcon(a.type);
   const duration = a.duration ? fmtDuration(a.duration) : '';
   const openHours = (a.openFrom && a.openTo) ? `${a.openFrom}–${a.openTo}` : '';
     const metaParts = [];
@@ -2657,10 +2674,14 @@ function placeCard(a, assigned){
   const timeBadge = assigned && a.time
     ? `<span class="time-badge">${a.time}</span>`
     : (assigned ? `<span class="time-badge">—</span>` : `<span class="time-badge">в пуле</span>`);
+    const ticketBadge = a.linkedTicketId
+    ? `<div class="meta" style="color:var(--accent);font-weight:600;margin-top:3px">🔒 из билета</div>`
+    : '';
   return `<div class="place-item ${assigned?'':'unassigned'}" onclick="openActivityModal('${a.id}')">
     <div class="pin">${typeIcon}</div>
     <div class="body">
       <div class="title">${esc(a.title||'Без названия')}</div>
+      ${ticketBadge}
       ${metaParts.length ? `<div class="meta">${metaParts.join('')}</div>` : ''}
       ${a.notes?`<div class="meta" style="margin-top:4px">${esc(a.notes)}</div>`:''}
     </div>
@@ -3035,6 +3056,79 @@ function saveTicketGeoCache(trip){
   try{
     localStorage.setItem(ticketGeoCacheKey(trip.id), JSON.stringify(trip._ticketGeoCache || {}));
   }catch(e){}
+}
+
+/* Синхронизирует «места-билеты» в плане с состоянием билета.
+   - Если ticket.toPlan === true: создаёт/обновляет место «Вылет»
+     и место «Прилёт» с привязкой linkedTicketId.
+   - Если false: удаляет все места с этим linkedTicketId.
+   Удаление/обновление идёт строго по linkedTicketId — не путается
+   с обычными местами, созданными вручную. */
+function syncTicketActivities(trip, ticketId){
+  const ticket = trip.tickets.find(t => t.id === ticketId);
+  if(!ticket){ return; }
+
+  // Убираем все места, привязанные к этому билету
+  trip.activities = (trip.activities || []).filter(a => a.linkedTicketId !== ticketId);
+
+  if(!ticket.toPlan) return;
+
+  const segs = ticket.segments || [];
+  if(!segs.length) return;
+
+  const first = segs[0];
+  const last  = segs[segs.length-1];
+  const from  = first.from || '—';
+  const to    = last.to   || '—';
+  const route = `${from} → ${to}`;
+
+  // Место «Вылет»
+  if(first.departDate){
+    const departTitle = `✈️ ${route} · вылет`;
+    trip.activities.push({
+      id: uid(),
+      title: departTitle,
+      date: first.departDate,
+      time: first.departTime || '',
+      notes: ticket.carrier ? `Перевозчик: ${ticket.carrier}` : '',
+      lat: (typeof first.fromLat === 'number') ? first.fromLat : null,
+      lng: (typeof first.fromLng === 'number') ? first.fromLng : null,
+      type: 'other',
+      duration: 180, // 3 ч: 2 ч регистрация + 1 ч запас
+      openFrom: '',
+      openTo: '',
+      price: 0,
+      addToExpense: false,
+      checklist: [],
+      linkedTicketId: ticketId,
+      linkedTicketRole: 'depart',
+      lockedByTicket: true
+    });
+  }
+
+  // Место «Прилёт»
+  if(last.arriveDate){
+    const arriveTitle = `✈️ ${route} · прилёт`;
+    trip.activities.push({
+      id: uid(),
+      title: arriveTitle,
+      date: last.arriveDate,
+      time: last.arriveTime || '',
+      notes: ticket.carrier ? `Перевозчик: ${ticket.carrier}` : '',
+      lat: (typeof last.toLat === 'number') ? last.toLat : null,
+      lng: (typeof last.toLng === 'number') ? last.toLng : null,
+      type: 'other',
+      duration: 60, // час на выезд из аэропорта/вокзала
+      openFrom: '',
+      openTo: '',
+      price: 0,
+      addToExpense: false,
+      checklist: [],
+      linkedTicketId: ticketId,
+      linkedTicketRole: 'arrive',
+      lockedByTicket: true
+    });
+  }
 }
 
 /* Собираем все уникальные точки из билетов */
@@ -3963,9 +4057,17 @@ function openTicketModal(id){
       <div><label>Заметки</label><textarea id="tk-notes" rows="2">${
   draft.notes !== undefined ? esc(draft.notes) : (t ? esc(t.notes||'') : '')
 }</textarea></div>
-      <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);margin-top:4px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);margin-top:4px">
         <input type="checkbox" id="tk-add-expense" style="width:auto;margin:0" ${isNew?'checked':''} />
         Добавить стоимость в расходы
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;color:var(--text);margin-top:4px">
+        <input type="checkbox" id="tk-to-plan" style="width:auto;margin:2px 0 0" ${t && t.toPlan ? 'checked' : ''} />
+        <span>Добавлять в план как место
+          <span class="muted" style="display:block;font-size:12px;margin-top:2px">
+            Создаст в «Плане» два пункта: вылет и прилёт, с учётом даты и времени. Их не будет трогать автораспределение.
+          </span>
+        </span>
       </label>
     </div>
     <div class="row" style="margin-top:8px">
@@ -4383,10 +4485,12 @@ function saveTicket(id){
   const link = document.getElementById('tk-link').value.trim();
   const notes = document.getElementById('tk-notes').value.trim();
   const addExpense = document.getElementById('tk-add-expense').checked;
+  const toPlan = document.getElementById('tk-to-plan').checked;
   const validSegs = state.ticketSegments.filter(sg => sg.from && sg.to);
   if(!validSegs.length){ alert('Заполни хотя бы один сегмент'); return; }
-    const data = {
+        const data = {
     type, carrier, ticketNumber, price, link, notes,
+    toPlan,
     // Привязка вложения
     attachmentId:   null,
     attachmentName: null,
@@ -4427,12 +4531,19 @@ function saveTicket(id){
     data.attachmentType = attach.type || '';
   }
 
+    let ticketId;
   if(id){
     const t = trip.tickets.find(x=>x.id===id);
     Object.assign(t, data);
+    ticketId = t.id;
   } else {
-    trip.tickets.push({ id: uid(), ...data });
+    const newTicket = { id: uid(), ...data };
+    trip.tickets.push(newTicket);
+    ticketId = newTicket.id;
   }
+
+  // Синхронизация мест-билетов в плане
+  syncTicketActivities(trip, ticketId);
   if(addExpense && price > 0){
     let cat = trip.budget.categories.find(c => c.name.toLowerCase() === 'транспорт');
     if(!cat){ cat = { id: uid(), name:'Транспорт', planned:0, color:'#34c759' }; trip.budget.categories.push(cat); }
@@ -4460,6 +4571,8 @@ function deleteTicket(id){
   if(doomed && doomed.attachmentId){
     deleteAttachment(doomed.attachmentId);
   }
+  // Удаляем связанные места-билеты
+  trip.activities = (trip.activities || []).filter(a => a.linkedTicketId !== id);
   trip.tickets = trip.tickets.filter(t => t.id !== id);
   DB.save(trips);
   closeModal();
@@ -4923,6 +5036,18 @@ function openActivityModal(id){
   state.editingId = id || null;
   state.tempChecklist = null;
   const a = id ? trip.activities.find(x=>x.id===id) : null;
+
+  // Если это место, созданное билетом — открываем модалку билета,
+  // а не модалку места. Так пользователь редактирует сам билет,
+  // а привязанное место обновится автоматически.
+  if(a && a.linkedTicketId){
+    const tk = trip.tickets.find(t => t.id === a.linkedTicketId);
+    if(tk){
+      // Небольшая задержка — чтобы не накладывалось на текущий клик
+      setTimeout(() => openTicketModal(tk.id), 0);
+      return;
+    }
+  }
   const days = daysBetween(trip.start, trip.end);
   const dateOptions = days.map(d => {
     const label = new Date(d).toLocaleDateString('ru-RU',{weekday:'short',day:'numeric',month:'long'});
@@ -5097,6 +5222,23 @@ async function delActivity(id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   const a = trip.activities.find(x => x.id === id);
   if(!a) return;
+
+  // Если это место-билет — предупреждаем и удаляем только из плана,
+  // снимая галочку toPlan у связанного билета, чтобы место
+  // не пересоздалось при следующем сохранении билета.
+  if(a.linkedTicketId){
+    const tk = trip.tickets.find(t => t.id === a.linkedTicketId);
+    const msg = tk
+      ? `Это место создано билетом «${tk.type ? ticketLabel(tk.type) : 'билет'}».\nУдалить из плана и снять галочку «Добавлять в план как место» у билета?`
+      : 'Это место создано билетом. Удалить его из плана?';
+    if(!confirm(msg)) return;
+    if(tk) tk.toPlan = false;
+    trip.activities = trip.activities.filter(x => x.id !== id);
+    DB.save(trips);
+    closeModal();
+    render();
+    return;
+  }
 
   const linkedExpense = (trip.budget.expenses || []).find(e => e.linkedActivityId === id);
 
@@ -6390,7 +6532,7 @@ function normalizeImport(data){
       dayStart: String(t.dayStart || '09:00'),
       dayEnd: String(t.dayEnd || '21:00'),
       rates: (t.rates && typeof t.rates === 'object') ? t.rates : { ...DEFAULT_RATES },
-            activities: Array.isArray(t.activities) ? t.activities.map(a=>({
+                        activities: Array.isArray(t.activities) ? t.activities.map(a=>({
         id: a.id || uid(), title: String(a.title || 'Без названия'),
         date: String(a.date || ''), time: String(a.time || ''),
         notes: String(a.notes || ''),
@@ -6402,6 +6544,9 @@ function normalizeImport(data){
         openTo: String(a.openTo || ''),
         price: Number(a.price) || 0,
         addToExpense: !!a.addToExpense,
+        linkedTicketId: a.linkedTicketId || null,
+        linkedTicketRole: a.linkedTicketRole || null,
+        lockedByTicket: !!a.lockedByTicket,
         checklist: Array.isArray(a.checklist) ? a.checklist.map(c=>({ id: c.id || uid(), text: String(c.text || ''), done: !!c.done })) : []
       })) : []
     };
@@ -6439,10 +6584,11 @@ function normalizeImport(data){
     })) : [];
     trip.tickets = Array.isArray(t.tickets) ? t.tickets.map(tk => {
       if(Array.isArray(tk.segments)){
-                return {
+                        return {
           id: tk.id || uid(), type: tk.type || 'other',
           ticketNumber: String(tk.ticketNumber || ''), carrier: String(tk.carrier || ''),
           price: Number(tk.price) || 0, link: String(tk.link || ''), notes: String(tk.notes || ''),
+          toPlan: !!tk.toPlan,
           attachmentId:   tk.attachmentId   || null,
           attachmentName: tk.attachmentName || null,
           attachmentSize: tk.attachmentSize || null,
@@ -6483,7 +6629,11 @@ function normalizeImport(data){
         ? t.checklists.shopping.map(x => ({ id: x.id || uid(), text: String(x.text || ''), note: String(x.note || ''), price: Number(x.price) || 0, done: !!x.done, addToBudget: !!x.addToBudget }))
         : []
     };
-    return ensureTrip(trip);
+        const t2 = ensureTrip(trip);
+    // Синхронизируем места-билеты, чтобы не было дублей
+    // (на случай, если в JSON места-билеты были, а билет toPlan=true)
+    (t2.tickets || []).forEach(tk => syncTicketActivities(t2, tk.id));
+    return t2;
   }).filter(Boolean);
 }
 function askImportMode(incoming){
