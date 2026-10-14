@@ -103,6 +103,30 @@
   [data-theme="noir"] .day-title{letter-spacing:2px;color:var(--accent)}
   [data-theme="noir"] .fab{color:#000}
 
+    [data-theme="picky"]{
+    color-scheme: dark;
+    --bg:#2a0f1f;
+    --bg-soft:#241019;
+    --bg-elev:#3a1629;
+    --text:#f7e8ef;
+    --muted:#b898a8;
+    --accent:#e6b980;
+    --accent-2:#d4a06a;
+    --accent-soft:#4a2535;
+    --border:#4d1e38;
+    --radius:20px;
+    --radius-sm:14px;
+    --radius-lg:26px;
+    --danger:#e5484d;
+    --overlay:rgba(20,5,15,.75);
+    --shadow:0 4px 20px rgba(0,0,0,.35);
+    --shadow-lg:0 12px 32px rgba(0,0,0,.5);
+    --shadow-fab:0 8px 24px rgba(230,185,128,.30);
+    --warn:#e6b980;
+    --ok:#8ed4a3;
+    --font-head:"Georgia,'Times New Roman',serif";
+  }
+
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
   body{
@@ -1092,6 +1116,335 @@ html{
     font-family: ui-monospace, Menlo, Consolas, monospace;
     user-select: all;
   }
+
+    /* =========================================================
+     PICKY (ROSE NOIR) — гламурные точечные правила
+     ========================================================= */
+
+  /* Заголовок — Georgia для «люксовости» */
+  [data-theme="picky"] header h1{
+    font-family: var(--font-head);
+    letter-spacing: .3px;
+    font-weight: 700;
+  }
+
+  /* Кнопки — градиент из розового в золото, тёмный текст */
+  [data-theme="picky"] .btn{
+    background: linear-gradient(135deg, #c76b8f, #e6b980);
+    color: #2a0f1f;
+    font-weight: 800;
+    letter-spacing: .3px;
+    box-shadow: 0 8px 24px rgba(199,107,143,.35);
+  }
+  [data-theme="picky"] .btn:active{
+    background: linear-gradient(135deg, #b25a7d, #d4a06a);
+  }
+
+  /* FAB — золотой с розовым ореолом */
+  [data-theme="picky"] .fab{
+    background: linear-gradient(135deg, #c76b8f, #e6b980);
+    color: #2a0f1f;
+    font-weight: 900;
+    box-shadow: 0 8px 24px rgba(199,107,143,.5);
+  }
+  [data-theme="picky"] .fab:hover{
+    box-shadow: 0 12px 32px rgba(230,185,128,.55);
+  }
+
+  /* Заголовки дней — с золотой точкой и Georgia */
+  [data-theme="picky"] .day-title{
+    font-family: var(--font-head);
+    font-style: italic;
+    letter-spacing: .4px;
+    color: var(--accent);
+  }
+
+  /* Активная вкладка — золотая подчёркивающая линия */
+  [data-theme="picky"] .trip-tab.active{
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* Заголовки групп — с золотой точкой слева */
+  [data-theme="picky"] .group-head .title{
+    color: var(--accent);
+    letter-spacing: 1.5px;
+  }
+
+  /* Бюджетный hero — тот же градиент, что и кнопки */
+  [data-theme="picky"] .budget-hero{
+    background: linear-gradient(135deg, #6b2a44, #4a1a2f);
+    color: var(--text);
+    box-shadow: 0 12px 32px rgba(107,42,68,.5);
+    border: 1px solid rgba(230,185,128,.25);
+  }
+  [data-theme="picky"] .budget-bar{
+    background: rgba(255,255,255,.15);
+  }
+  [data-theme="picky"] .budget-bar > div{
+    background: linear-gradient(90deg, #c76b8f, #e6b980);
+  }
+
+  /* Чипы — активный золотой, неактивный тёплый */
+  [data-theme="picky"] .chip.active{
+    background: var(--accent);
+    color: #2a0f1f;
+    font-weight: 700;
+  }
+  [data-theme="picky"] .chip:hover:not(.active){
+    background: var(--border);
+  }
+
+  /* Бейджи «Сейчас» / «Через N дн» — золотые */
+  [data-theme="picky"] .card .badge{
+    background: var(--accent);
+    color: #2a0f1f;
+  }
+  [data-theme="picky"] .card .badge.active{
+    background: var(--ok);
+    color: #2a0f1f;
+  }
+
+  /* Контакты-hero — тот же градиент, что у кнопок */
+  [data-theme="picky"] .contacts-hero{
+    background: linear-gradient(135deg, #6b2a44, #4a1a2f);
+    color: var(--text);
+    border: 1px solid rgba(230,185,128,.25);
+  }
+  [data-theme="picky"] .contacts-hero .contacts-brand{
+    color: var(--accent);
+  }
+
+  /* Заголовок модалки — Georgia */
+  [data-theme="picky"] .modal-head h3{
+    font-family: var(--font-head);
+    font-weight: 700;
+    letter-spacing: .2px;
+  }
+
+  /* Тонкая золотая полоска под шапкой */
+  [data-theme="picky"] header{
+    border-bottom: 1px solid rgba(230,185,128,.25);
+  }
+
+  /* Биллет-хедер: тот же глубокий градиент */
+  [data-theme="picky"] .ticket-head{
+    background: linear-gradient(135deg, #6b2a44, #4a1a2f);
+    color: var(--text);
+    border-bottom: 1px solid rgba(230,185,128,.25);
+  }
+
+  /* Скроллбары в розово-золотых тонах */
+  [data-theme="picky"] *::-webkit-scrollbar-thumb{
+    background: #4d1e38;
+    border-color: #2a0f1f;
+  }
+  [data-theme="picky"] *::-webkit-scrollbar-thumb:hover{
+    background: #c76b8f;
+  }
+
+  /* Фокус — заметная золотая обводка */
+  [data-theme="picky"] button:focus-visible,
+  [data-theme="picky"] a:focus-visible,
+  [data-theme="picky"] input:focus-visible,
+  [data-theme="picky"] textarea:focus-visible,
+  [data-theme="picky"] select:focus-visible{
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Липкий заголовок дня — фон должен совпадать с --bg */
+  [data-theme="picky"] .day-title{
+    background: var(--bg);
+  }
+
+  /* Banned-карточка в контактах — золото вместо жёлтого */
+  [data-theme="picky"] .banned-card{
+    border-left-color: var(--accent);
+  }
+  [data-theme="picky"] .banned-tag{
+    background: var(--accent);
+    color: #2a0f1f;
+  }
+
+    /* =========================================================
+     МОДАЛКА-ПОДТВЕРЖДЕНИЕ С КОНТЕКСТОМ
+     ========================================================= */
+  .confirm-context{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+  }
+  .confirm-icon{
+    font-size: 26px;
+    flex-shrink: 0;
+  }
+  .confirm-body{ flex: 1; min-width: 0; }
+  .confirm-name{
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .confirm-meta{
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+  .confirm-text{
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+    /* =========================================================
+     ТУЛБАР МАРШРУТА — кнопки прокрутки и градиентные маски
+     ========================================================= */
+
+  .map-toolbar-wrap{
+    position: absolute;
+    top: 52px;
+    left: 10px;
+    right: 10px;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+    gap: 4px;
+  }
+
+  /* Внутри обёртки старый .map-toolbar-row уже имеет position:absolute —
+     отменяем, чтобы он лёг во flex-контейнер */
+  .map-toolbar-wrap .map-toolbar-row{
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    flex: 1;
+    min-width: 0;
+    pointer-events: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Кнопки-стрелки — только на десктопе (мышь) */
+  .map-toolbar-arrow{
+    display: none;
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: #1c1c1e;
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, transform .1s;
+    pointer-events: auto;
+    padding: 0;
+  }
+  .map-toolbar-arrow:active{ transform: scale(.94); }
+
+  /* Градиентные маски — подсказка «есть ещё» */
+  .map-toolbar-wrap::before,
+  .map-toolbar-wrap::after{
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 22px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .2s;
+    z-index: 1;
+  }
+  .map-toolbar-wrap::before{
+    left: 0;
+    background: linear-gradient(to right, rgba(255,255,255,.95), rgba(255,255,255,0));
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+  }
+  .map-toolbar-wrap::after{
+    right: 0;
+    background: linear-gradient(to left, rgba(255,255,255,.95), rgba(255,255,255,0));
+    border-top-right-radius: 999px;
+    border-bottom-right-radius: 999px;
+  }
+  .map-toolbar-wrap.show-left::before{ opacity: 1; }
+  .map-toolbar-wrap.show-right::after{ opacity: 1; }
+
+  /* Тонкий скроллбар на десктопе (вместо скрытого) */
+  @media (hover: hover) and (pointer: fine){
+    .map-toolbar-wrap .map-toolbar-row{
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,0,0,.25) transparent;
+      padding-bottom: 6px;
+    }
+    .map-toolbar-wrap .map-toolbar-row::-webkit-scrollbar{
+      display: block;
+      height: 4px;
+    }
+    .map-toolbar-wrap .map-toolbar-row::-webkit-scrollbar-thumb{
+      background: rgba(0,0,0,.25);
+      border-radius: 4px;
+      border: none;
+    }
+    .map-toolbar-wrap .map-toolbar-row::-webkit-scrollbar-thumb:hover{
+      background: rgba(0,0,0,.45);
+    }
+    .map-toolbar-wrap .map-toolbar-row::-webkit-scrollbar-track{
+      background: transparent;
+    }
+
+    /* Показываем стрелки только на десктопе и только если есть что скроллить */
+    .map-toolbar-wrap:not(.no-scroll) .map-toolbar-arrow{
+      display: flex;
+    }
+    .map-toolbar-arrow:hover{
+      background: #f0f0f0;
+    }
+  }
+
+  /* На тач-устройствах стрелки никогда не показываем,
+     маски тоже скрываем — там просто свайп */
+  @media (hover: none){
+    .map-toolbar-wrap::before,
+    .map-toolbar-wrap::after{
+      display: none;
+    }
+  }
+
+  /* Тёмные темы: маски и стрелки должны быть тёмными */
+  [data-theme="dark"] .map-toolbar-arrow,
+  [data-theme="punk"] .map-toolbar-arrow,
+  [data-theme="noir"] .map-toolbar-arrow,
+  [data-theme="picky"] .map-toolbar-arrow{
+    background: var(--bg-elev);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  [data-theme="dark"] .map-toolbar-wrap::before,
+  [data-theme="punk"] .map-toolbar-wrap::before,
+  [data-theme="noir"] .map-toolbar-wrap::before,
+  [data-theme="picky"] .map-toolbar-wrap::before{
+    background: linear-gradient(to right, var(--bg) 20%, transparent);
+  }
+  [data-theme="dark"] .map-toolbar-wrap::after,
+  [data-theme="punk"] .map-toolbar-wrap::after,
+  [data-theme="noir"] .map-toolbar-wrap::after,
+  [data-theme="picky"] .map-toolbar-wrap::after{
+    background: linear-gradient(to left, var(--bg) 20%, transparent);
+  }
 </style>
 </head>
 <body>
@@ -1108,6 +1461,7 @@ html{
 const THEMES = [
   { id:'light', icon:'☀️', label:'Светлая' },
   { id:'dark', icon:'🌑', label:'Тёмная' },
+  { id:'picky', icon:'💅', label:'Пикми' },
   { id:'punk', icon:'🤘', label:'Панк' },
   { id:'noir', icon:'🎩', label:'Нуар' }
 ];
@@ -1230,13 +1584,13 @@ const APP_INFO = {
 };
 
 function applyTheme(theme){
-  // Миграция устаревших тем
-  const legacy = { picky:'light', oldmoney:'light' };
-  if(legacy[theme]) theme = legacy[theme];
+  // Миграция только для oldmoney (его больше нет)
+  if(theme === 'oldmoney') theme = 'picky';
   document.documentElement.setAttribute('data-theme', theme);
   const map = {
     light:'#fbf8f0',   // кремовый — как в брендинге
     dark:'#0c3b2c',    // тёмно-зелёный бренд
+    picky:'#2a0f1f',   // сливово-бордовый
     punk:'#0f0f0f',
     noir:'#111116'
   };
@@ -1475,12 +1829,14 @@ function ensureTrip(t){
   if(!t.dayEnd) t.dayEnd = '21:00';
   if(t.lunchStart === undefined) t.lunchStart = '13:00';
   if(t.lunchEnd === undefined) t.lunchEnd = '14:00';
-  if(Array.isArray(t.activities)){
+    if(Array.isArray(t.activities)){
     t.activities.forEach(a => {
       if(typeof a.duration !== 'number') a.duration = 60;
       if(!a.type) a.type = 'other';
       if(a.openFrom === undefined) a.openFrom = '';
       if(a.openTo === undefined) a.openTo = '';
+      if(typeof a.price !== 'number' || isNaN(a.price)) a.price = 0;
+      if(a.addToExpense === undefined) a.addToExpense = false;
     });
   }
   if(t.budget && Array.isArray(t.budget.expenses)){
@@ -2171,10 +2527,11 @@ function actCard(a){
   const typeIcon = placeTypeIcon(a.type);
   const duration = a.duration ? fmtDuration(a.duration) : '';
   const openHours = (a.openFrom && a.openTo) ? `${a.openFrom}–${a.openTo}` : '';
-  const metaParts = [];
+    const metaParts = [];
   if(a.time) metaParts.push(`🕒 ${esc(a.time)}`);
   if(duration) metaParts.push(`⏱ ${duration}`);
   if(openHours) metaParts.push(`🕐 ${openHours}`);
+  if(a.price > 0) metaParts.push(`💰 ${fmtMoney(a.price, 'RUB')}`);
   const metaLine = metaParts.length ? `<div class="meta">${metaParts.join(' · ')}</div>` : '';
   const mapLinks = a.lat!=null && a.lng!=null ? `
     <div class="map-links">
@@ -2291,9 +2648,10 @@ function placeCard(a, assigned){
   const typeIcon = placeTypeIcon(a.type);
   const duration = a.duration ? fmtDuration(a.duration) : '';
   const openHours = (a.openFrom && a.openTo) ? `${a.openFrom}–${a.openTo}` : '';
-  const metaParts = [];
+    const metaParts = [];
   if(duration) metaParts.push(`<span class="tag">⏱ ${duration}</span>`);
   if(openHours) metaParts.push(`<span class="tag">🕐 ${openHours}</span>`);
+  if(a.price > 0) metaParts.push(`<span class="tag">💰 ${fmtMoney(a.price, 'RUB')}</span>`);
   if(a.type && a.type !== 'other') metaParts.push(`<span class="tag">${typeIcon} ${placeTypeLabel(a.type)}</span>`);
   if(!a.lat && !a.lng) metaParts.push(`<span class="tag" style="color:var(--danger)">⚠ нет координат</span>`);
   const timeBadge = assigned && a.time
@@ -2340,6 +2698,7 @@ function openAutoDistributeModal(){
           <label>до</label><input id="ad-lunch-end" type="time" value="14:00" style="width:auto;flex:0 0 auto" />
         </div>
         <div class="opt-row"><label><input type="checkbox" id="ad-even" checked /> Распределить равномерно по дням</label></div>
+        <div class="opt-row"><label><input type="checkbox" id="ad-tickets" checked /> Учитывать билеты (прилёт / вылет)</label></div>
         <div class="opt-row"><label><input type="checkbox" id="ad-save-defaults" checked /> Сохранить как настройки поездки</label></div>
       </div>
       <div><label>Что делать с уже распределёнными</label>
@@ -2362,8 +2721,9 @@ function runAutoDistribute(){
   const lunchOn = document.getElementById('ad-lunch-on').checked;
   const lunchStartStr = lunchOn ? (document.getElementById('ad-lunch-start').value || '') : '';
   const lunchEndStr = lunchOn ? (document.getElementById('ad-lunch-end').value || '') : '';
-  const saveDefaults = document.getElementById('ad-save-defaults').checked;
+    const saveDefaults = document.getElementById('ad-save-defaults').checked;
   const evenMode = document.getElementById('ad-even').checked;
+  const considerTickets = document.getElementById('ad-tickets').checked;
   const mode = document.getElementById('ad-mode').value;
 
   const dayStart = timeToMin(startStr);
@@ -2406,6 +2766,36 @@ function runAutoDistribute(){
     }) || null;
   }
 
+  /* Собирает занятые временные окна на день, порождённые билетами.
+   Возвращает массив [startMin, endMin, reason].
+   - прилёт: [0, arriveTime + 60] — час на выезд из аэропорта/вокзала
+   - вылет:  [departTime - 120, 24*60] — 2 часа до отправления + дорога
+   Учитываются только сегменты с указанным временем. */
+function ticketWindowsForDay(trip, day){
+  const out = [];
+  const ARRIVE_BUFFER = 60;   // минут после прилёта
+  const DEPART_BUFFER = 120;  // минут до вылета
+  (trip.tickets || []).forEach(tk => {
+    (tk.segments || []).forEach(sg => {
+      // Прилёт в этот день
+      if(sg.arriveDate === day && sg.arriveTime){
+        const arr = timeToMin(sg.arriveTime);
+        if(arr != null){
+          out.push([0, arr + ARRIVE_BUFFER, `прилёт в ${sg.arriveTime}`]);
+        }
+      }
+      // Вылет в этот день
+      if(sg.departDate === day && sg.departTime){
+        const dep = timeToMin(sg.departTime);
+        if(dep != null){
+          out.push([Math.max(0, dep - DEPART_BUFFER), 24*60, `вылет в ${sg.departTime}`]);
+        }
+      }
+    });
+  });
+  return out;
+}
+
   const sortedPool = pool.slice().sort((a, b) => {
     const da = Number(a.duration) || 60;
     const db = Number(b.duration) || 60;
@@ -2418,7 +2808,7 @@ function runAutoDistribute(){
   const placed = [];
   const failed = [];
 
-  function buildFreeWindows(day){
+    function buildFreeWindows(day){
     const busy = [];
     booked[day].forEach(a => {
       const t = timeToMin(a.time);
@@ -2427,10 +2817,18 @@ function runAutoDistribute(){
       busy.push([t, t + dur]);
     });
     busy.sort((a,b)=> a[0] - b[0]);
+
     const windows = [];
     let cur = dayStart;
+
     const lunchBlock = (lunchOn && lunchStart != null && lunchEnd != null) ? [[lunchStart, lunchEnd]] : [];
-    const allBlocks = [...busy, ...lunchBlock].sort((a,b)=> a[0] - b[0]);
+
+    // Билеты — учитываем прилёт и вылет этого дня
+    const ticketBlocks = considerTickets
+      ? ticketWindowsForDay(trip, day).map(w => [w[0], w[1]])
+      : [];
+
+    const allBlocks = [...busy, ...lunchBlock, ...ticketBlocks].sort((a,b)=> a[0] - b[0]);
     allBlocks.forEach(([bs, be]) => {
       if(bs > cur && bs <= dayEnd) windows.push([cur, bs]);
       if(be > cur) cur = be;
@@ -2510,15 +2908,48 @@ function runAutoDistribute(){
     }
   });
 
+    // Собираем для каждого дня окна, порождённые билетами,
+  // чтобы потом точнее объяснить, почему место не поместилось
+  const ticketBlockersByDay = {};
+  if(considerTickets){
+    days.forEach(d => {
+      const tw = ticketWindowsForDay(trip, d);
+      if(tw.length) ticketBlockersByDay[d] = tw;
+    });
+  }
+
   remaining.forEach(item => {
     const dur = Number(item.duration) || 60;
     const openFrom = timeToMin(item.openFrom);
     const openTo = timeToMin(item.openTo);
     let reason = 'не влезло по времени';
+
     if(openFrom != null && openTo != null){
       if(openTo - openFrom < dur) reason = 'окно работы меньше длительности';
       else if(openTo <= dayStart || openFrom >= dayEnd) reason = 'не попадает в часы дня';
     }
+
+    // Проверим, может быть конфликт с билетом
+    if(reason === 'не влезло по времени' && considerTickets){
+      // Ищем день, где прилёт/вылет съедает всё окно
+      const dayStartStr = startStr; // исходная строка
+      for(const d of days){
+        const blockers = ticketBlockersByDay[d];
+        if(!blockers) continue;
+        for(const [bs, be, why] of blockers){
+          // Если весь день свободен только вне блокера
+          const freeBefore = Math.max(0, bs - dayStart);
+          const freeAfter  = Math.max(0, dayEnd - be);
+          const maxFree = Math.max(freeBefore, freeAfter);
+          if(maxFree < dur){
+            reason = `конфликт с билетом (${why})`;
+            break;
+          }
+        }
+        if(reason.startsWith('конфликт')) break;
+      }
+    }
+
     failed.push({ item, reason });
   });
 
@@ -2678,19 +3109,23 @@ function renderMapTab(trip){
         ` : `<div class="chip active">🧭 Режим маршрута</div>`}
         <div class="chip" onclick="toggleMapMode()">${state.mapMode === 'points' ? '🧭 Маршрут' : '👁 Все точки'}</div>
       </div>
-      ${state.mapMode === 'route' && days.length ? `
-        <div class="map-toolbar-row" id="route-toolbar">
-          ${state.routeDay === null
-            ? `<div class="chip active" onclick="setRouteDay(null)">Все дни</div>`
-            : `<div class="chip" onclick="setRouteDay(null)">Все дни</div>`}
-          ${days.map((d, i) => {
-            const label = new Date(d).toLocaleDateString('ru-RU',{day:'numeric',month:'short'});
-            const isActive = state.routeDay === d;
-            return `<div class="chip ${isActive?'active':''}" onclick="setRouteDay('${d}')">Д${i+1} · ${esc(label)}</div>`;
-          }).join('')}
-          <div class="chip ${state.routeReturn?'active':''}" onclick="toggleRouteReturn()">🏠 Возврат ${state.routeReturn?'✓':'✗'}</div>
-          <div class="chip ${state.routeOrder==='distance'?'active':''}" onclick="setRouteOrder('distance')">↔ По расстоянию</div>
-          <div class="chip ${state.routeOrder==='time'?'active':''}" onclick="setRouteOrder('time')">🕐 По времени</div>
+            ${state.mapMode === 'route' && days.length ? `
+        <div class="map-toolbar-wrap">
+          <button type="button" class="map-toolbar-arrow left" onclick="scrollRouteToolbar(-220)" aria-label="Прокрутить влево">‹</button>
+          <div class="map-toolbar-row" id="route-toolbar" tabindex="0">
+            ${state.routeDay === null
+              ? `<div class="chip active" onclick="setRouteDay(null)">Все дни</div>`
+              : `<div class="chip" onclick="setRouteDay(null)">Все дни</div>`}
+            ${days.map((d, i) => {
+              const label = new Date(d).toLocaleDateString('ru-RU',{day:'numeric',month:'short'});
+              const isActive = state.routeDay === d;
+              return `<div class="chip ${isActive?'active':''}" onclick="setRouteDay('${d}')">Д${i+1} · ${esc(label)}</div>`;
+            }).join('')}
+            <div class="chip ${state.routeReturn?'active':''}" onclick="toggleRouteReturn()">🏠 Возврат ${state.routeReturn?'✓':'✗'}</div>
+            <div class="chip ${state.routeOrder==='distance'?'active':''}" onclick="setRouteOrder('distance')">↔ По расстоянию</div>
+            <div class="chip ${state.routeOrder==='time'?'active':''}" onclick="setRouteOrder('time')">🕐 По времени</div>
+          </div>
+          <button type="button" class="map-toolbar-arrow right" onclick="scrollRouteToolbar(220)" aria-label="Прокрутить вправо">›</button>
         </div>` : ''}
       <div id="trip-map"></div>
       <div id="map-status-wrap"></div>
@@ -2722,12 +3157,57 @@ function renderMapTab(trip){
           renderMapTabMarkers(t2);
         }
       });
-    } else if(tries > 50){
+        } else if(tries > 50){
       clearInterval(wait);
       document.getElementById('map-status-wrap').innerHTML = `<div class="map-status">⚠️ Не удалось загрузить карту.</div>`;
     }
   }, 100);
+
+  // Инициализация тулбара — после того, как DOM отрисован
+  requestAnimationFrame(() => {
+    updateRouteToolbarState();
+
+    const el = document.getElementById('route-toolbar');
+    if(el){
+      el.addEventListener('scroll', updateRouteToolbarState, { passive: true });
+      el.addEventListener('keydown', (e) => {
+        if(e.key === 'ArrowLeft'){  e.preventDefault(); el.scrollBy({left:-160, behavior:'smooth'}); }
+        if(e.key === 'ArrowRight'){ e.preventDefault(); el.scrollBy({left: 160, behavior:'smooth'}); }
+      });
+    }
+  });
 }
+
+/* Прокрутка тулбара маршрута (кнопки ‹ ›) */
+function scrollRouteToolbar(delta){
+  const el = document.getElementById('route-toolbar');
+  if(!el) return;
+  el.scrollBy({ left: delta, behavior: 'smooth' });
+}
+
+/* Обновление видимости стрелок и градиентных масок
+   в зависимости от позиции скролла. Вызывается после рендера
+   карты и по событию scroll/resize. */
+function updateRouteToolbarState(){
+  const wrap = document.querySelector('.map-toolbar-wrap');
+  const el = document.getElementById('route-toolbar');
+  if(!wrap || !el) return;
+
+  const maxScroll = el.scrollWidth - el.clientWidth;
+  const atStart = el.scrollLeft <= 2;
+  const atEnd = el.scrollLeft >= maxScroll - 2;
+
+  // Если всё помещается — прячем стрелки и маски
+  if(maxScroll <= 2){
+    wrap.classList.add('no-scroll');
+    wrap.classList.remove('show-left', 'show-right');
+    return;
+  }
+  wrap.classList.remove('no-scroll');
+  wrap.classList.toggle('show-left', !atStart);
+  wrap.classList.toggle('show-right', !atEnd);
+}
+
 function toggleMapMode(){
   state.mapMode = state.mapMode === 'points' ? 'route' : 'points';
   if(state.mapMode === 'route' && state.routeDay === null && state.tripId){
@@ -4290,11 +4770,70 @@ function saveExpense(id){
   }
   DB.save(trips); closeModal(); render();
 }
-function deleteExpense(id){
-  if(!confirm('Удалить трату?')) return;
+async function deleteExpense(id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
-  trip.budget.expenses = trip.budget.expenses.filter(x=>x.id!==id);
-  DB.save(trips); closeModal(); render();
+  const doomed = trip.budget.expenses.find(x => x.id === id);
+  if(!doomed) return;
+
+  const linked = doomed.linkedActivityId
+    ? trip.activities.find(a => a.id === doomed.linkedActivityId)
+    : null;
+
+  // Трата без привязки — обычный confirm
+  if(!linked){
+    if(!confirm('Удалить трату?')) return;
+    trip.budget.expenses = trip.budget.expenses.filter(x => x.id !== id);
+    DB.save(trips);
+    closeModal();
+    render();
+    return;
+  }
+
+  // Трата привязана к месту — открываем контекстную модалку
+  const dateLine = linked.date
+    ? `${fmtDate(linked.date)}${linked.time ? ', ' + esc(linked.time) : ''}`
+    : 'без даты';
+  const cat = trip.budget.categories.find(c => c.id === doomed.categoryId);
+  const catLine = cat ? esc(cat.name) : '—';
+  const amountLine = fmtMoney(doomed.amount || 0, 'RUB');
+
+  const choice = await confirmModal({
+    title: 'Удалить трату?',
+    bodyHtml: `
+      <div class="confirm-context">
+        <div class="confirm-icon">💸</div>
+        <div class="confirm-body">
+          <div class="confirm-name">${esc(doomed.title || 'Трата')}</div>
+          <div class="confirm-meta">${amountLine} · ${catLine}</div>
+        </div>
+      </div>
+      <p class="confirm-text">
+        Эта трата привязана к месту <b>«${esc(linked.title)}»</b>
+        во вкладке «План» (<span class="muted">${dateLine}</span>).
+      </p>
+      <p class="confirm-text" style="font-size:12.5px;text-align:center">
+        <a href="#" onclick="event.preventDefault();jumpToLinkedPlace('${linked.id}');return false;"
+           style="color:var(--accent);text-decoration:none;font-weight:600">
+          ↗ Открыть место в плане
+        </a>
+      </p>
+    `,
+    buttons: [
+      { label: 'Удалить только трату', value: 'expense', danger: false },
+      { label: 'Удалить и место',      value: 'both',    danger: true  }
+    ]
+  });
+
+  if(choice === 'expense'){
+    if(linked) linked.addToExpense = false;
+    trip.budget.expenses = trip.budget.expenses.filter(x => x.id !== id);
+  } else if(choice === 'both'){
+    trip.budget.expenses = trip.budget.expenses.filter(x => x.id !== id);
+    trip.activities = trip.activities.filter(a => a.id !== linked.id);
+  }
+
+  DB.save(trips);
+  render();
 }
 function openSavingModal(id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -4424,9 +4963,18 @@ function openActivityModal(id){
           </select>
         </div>
       </div>
-      <div class="row">
+            <div class="row">
         <div><label>Открыто с</label><input id="m-open-from" type="time" value="${a&&a.openFrom?esc(a.openFrom):''}" /></div>
         <div><label>Открыто до</label><input id="m-open-to" type="time" value="${a&&a.openTo?esc(a.openTo):''}" /></div>
+      </div>
+      <div class="row">
+        <div><label>Стоимость, ₽</label><input id="m-price" type="number" min="0" step="0.01" placeholder="0" value="${a && a.price ? a.price : ''}" /></div>
+        <div style="display:flex;align-items:flex-end;padding-bottom:12px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);opacity:1;font-weight:500;margin:0">
+            <input type="checkbox" id="m-add-expense" style="width:auto;margin:0" ${a && a.addToExpense ? 'checked' : ''} />
+            Добавить в расходы
+          </label>
+        </div>
       </div>
       <div>
         <label>Чеклист</label>
@@ -4465,22 +5013,141 @@ function saveActivity(){
   const duration = parseInt(document.getElementById('m-duration').value, 10) || 60;
   const openFrom = document.getElementById('m-open-from').value || '';
   const openTo = document.getElementById('m-open-to').value || '';
+  const price = parseFloat(document.getElementById('m-price').value) || 0;
+  const addToExpense = document.getElementById('m-add-expense').checked;
+
+  let activityId;
   if(state.editingId){
     const a = trip.activities.find(x=>x.id===state.editingId);
-    Object.assign(a, {title, date, time, notes, lat, lng, type, duration, openFrom, openTo});
+    Object.assign(a, {title, date, time, notes, lat, lng, type, duration, openFrom, openTo, price, addToExpense});
+    activityId = a.id;
   } else {
-    const newAct = { id: uid(), title, date, time, notes, lat, lng, type, duration, openFrom, openTo, checklist: [] };
+    const newAct = {
+      id: uid(), title, date, time, notes, lat, lng, type, duration,
+      openFrom, openTo, price, addToExpense, checklist: []
+    };
     if(state.tempChecklist && state.tempChecklist.length) newAct.checklist = state.tempChecklist;
     trip.activities.push(newAct);
+    activityId = newAct.id;
   }
+
+  // Синхронизация с бюджетом
+  syncActivityExpense(trip, activityId);
+
   DB.save(trips);
   closeModal();
   render();
 }
-function delActivity(id){
-  if(!confirm('Удалить это место?')) return;
+
+/* Синхронизирует трату в бюджете с параметрами места:
+   - если addToExpense=true и price>0 — создаёт/обновляет запись
+   - если addToExpense=false или price=0 — удаляет запись
+*/
+function syncActivityExpense(trip, activityId){
+  const a = trip.activities.find(x => x.id === activityId);
+  if(!a) return;
+
+  // Ищем связанную трату
+  const existing = (trip.budget.expenses || []).find(e => e.linkedActivityId === activityId);
+
+  const shouldHave = !!(a.addToExpense && a.price > 0);
+
+  if(shouldHave){
+    // Убедимся, что есть категория «Активности»
+    let cat = trip.budget.categories.find(c => c.name.toLowerCase() === 'активности');
+    if(!cat){
+      cat = { id: uid(), name:'Активности', planned:0, color:'#af52de' };
+      trip.budget.categories.push(cat);
+    }
+    const dateForExpense = a.date || trip.start || todayISO();
+    const title = a.title || 'Место';
+
+    if(existing){
+      // Обновляем
+      existing.title = title;
+      existing.amount = a.price;
+      existing.date = dateForExpense;
+      existing.categoryId = cat.id;
+      existing.priceInRUB = true;
+      existing.isPrepaid = false;
+      existing.note = 'из карточки места';
+    } else {
+      trip.budget.expenses.push({
+        id: uid(),
+        title,
+        amount: a.price,
+        date: dateForExpense,
+        categoryId: cat.id,
+        note: 'из карточки места',
+        priceInRUB: true,
+        isPrepaid: false,
+        paidBy: trip.me || 'Я',
+        splitWith: 1,
+        linkedActivityId: activityId
+      });
+    }
+  } else {
+    // Должно быть удалено
+    if(existing){
+      trip.budget.expenses = trip.budget.expenses.filter(e => e.id !== existing.id);
+    }
+  }
+}
+async function delActivity(id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
-  trip.activities = trip.activities.filter(a=>a.id!==id);
+  const a = trip.activities.find(x => x.id === id);
+  if(!a) return;
+
+  const linkedExpense = (trip.budget.expenses || []).find(e => e.linkedActivityId === id);
+
+  // Нет связанной траты — обычный confirm
+  if(!linkedExpense){
+    if(!confirm('Удалить это место?')) return;
+    trip.activities = trip.activities.filter(x => x.id !== id);
+    DB.save(trips);
+    closeModal();
+    render();
+    return;
+  }
+
+  const amountLine = fmtMoney(linkedExpense.amount || 0, 'RUB');
+
+  const choice = await confirmModal({
+    title: 'Удалить место?',
+    bodyHtml: `
+      <div class="confirm-context">
+        <div class="confirm-icon">${placeTypeIcon(a.type)}</div>
+        <div class="confirm-body">
+          <div class="confirm-name">${esc(a.title || 'Место')}</div>
+          <div class="confirm-meta">${a.date ? fmtDate(a.date) : 'без даты'}${a.time ? ', ' + esc(a.time) : ''}</div>
+        </div>
+      </div>
+      <p class="confirm-text">
+        К этому месту привязана трата в бюджете:
+        <b>«${esc(linkedExpense.title || '—')}»</b>
+        на <b>${amountLine}</b>.
+      </p>
+      <p class="confirm-text muted" style="font-size:12.5px">
+        Если удалить только место — трата останется в бюджете как обычная ручная запись.
+      </p>
+    `,
+    buttons: [
+      { label: 'Удалить только место', value: 'activity', danger: false },
+      { label: 'Удалить и трату',      value: 'both',     danger: true  }
+    ]
+  });
+
+  if(choice === 'activity'){
+    linkedExpense.linkedActivityId = null;
+    linkedExpense.note = linkedExpense.note
+      ? linkedExpense.note.replace(/\s*из карточки места\s*/,'').trim() || ''
+      : '';
+    trip.activities = trip.activities.filter(x => x.id !== id);
+  } else if(choice === 'both'){
+    trip.budget.expenses = trip.budget.expenses.filter(e => e.id !== linkedExpense.id);
+    trip.activities = trip.activities.filter(x => x.id !== id);
+  }
+
   DB.save(trips);
   closeModal();
   render();
@@ -4799,6 +5466,65 @@ function closeModalFromHistory(){
     modalCloseTimer = null;
   }, 300);
 }
+
+/* Универсальная модалка-подтверждение.
+   Возвращает Promise<boolean> или Promise<'primary'|'secondary'>.
+   Кнопки: массив [{label, value, danger?}, ...] + всегда «Отмена».
+*/
+/* Универсальная модалка-подтверждение.
+   Возвращает Promise<string> — значение value нажатой кнопки.
+   Если пользователь закрыл модалку любым другим способом —
+   promise никогда не разрешится, и код после await не выполнится. */
+function confirmModal({ title, bodyHtml, buttons }){
+  return new Promise((resolve) => {
+    const btnHtml = buttons.map(b =>
+      `<button class="btn ${b.danger ? 'btn-danger' : ''}" data-choice="${esc(b.value)}" style="flex:1">${esc(b.label)}</button>`
+    ).join('');
+
+    openModal(`
+      <div class="modal-head">
+        <h3>${esc(title)}</h3>
+        <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
+      </div>
+      <div class="modal-body">
+        ${bodyHtml}
+      </div>
+      <div class="modal-foot" style="flex-direction:column;gap:8px">
+        <div style="display:flex;gap:8px;width:100%">${btnHtml}</div>
+      </div>
+    `);
+
+    const modalEl = document.getElementById('modal');
+    const handler = (e) => {
+      const btn = e.target.closest('button[data-choice]');
+      if(!btn) return;
+      const choice = btn.dataset.choice;
+      modalEl.removeEventListener('click', handler);
+      closeModal();
+      resolve(choice);
+    };
+    modalEl.addEventListener('click', handler);
+  });
+}
+
+/* Переход на вкладку «План» и подсветка карточки места.
+   Закрывает текущую модалку. */
+function jumpToLinkedPlace(activityId){
+  closeModal();
+  setTimeout(() => {
+    setTripTab('plan');
+    setTimeout(() => {
+      const el = document.querySelector(`.act[data-id="${activityId}"]`);
+      if(el){
+        el.scrollIntoView({behavior:'smooth', block:'center'});
+        el.style.transition = 'box-shadow .5s ease';
+        el.style.boxShadow = '0 0 0 3px var(--accent)';
+        setTimeout(() => { el.style.boxShadow = ''; }, 1600);
+      }
+    }, 250);
+  }, 120);
+}
+
 function openMenu(){
   openModal(`
     <div class="modal-head"><h3>Меню</h3><button class="btn-ghost" onclick="closeModal()">Закрыть</button></div>
@@ -4812,9 +5538,9 @@ function openMenu(){
           <span class="emoji">📤</span>
           <span class="label">Экспорт всех поездок<span class="hint"><br>Скачать JSON-файл</span></span>
         </button>
-        <button class="menu-item" onclick="triggerImport()">
+                <button class="menu-item" onclick="triggerImport()">
           <span class="emoji">📥</span>
-          <span class="label">Импорт из файла<span class="hint"><br>Загрузить JSON</span></span>
+          <span class="label">Импорт из файла<span class="hint"><br>Добавить новые или заменить текущие</span></span>
         </button>
         <button class="menu-item" onclick="openAboutModal()">
           <span class="emoji">ℹ️</span>
@@ -5664,7 +6390,7 @@ function normalizeImport(data){
       dayStart: String(t.dayStart || '09:00'),
       dayEnd: String(t.dayEnd || '21:00'),
       rates: (t.rates && typeof t.rates === 'object') ? t.rates : { ...DEFAULT_RATES },
-      activities: Array.isArray(t.activities) ? t.activities.map(a=>({
+            activities: Array.isArray(t.activities) ? t.activities.map(a=>({
         id: a.id || uid(), title: String(a.title || 'Без названия'),
         date: String(a.date || ''), time: String(a.time || ''),
         notes: String(a.notes || ''),
@@ -5674,6 +6400,8 @@ function normalizeImport(data){
         duration: Number(a.duration) || 60,
         openFrom: String(a.openFrom || ''),
         openTo: String(a.openTo || ''),
+        price: Number(a.price) || 0,
+        addToExpense: !!a.addToExpense,
         checklist: Array.isArray(a.checklist) ? a.checklist.map(c=>({ id: c.id || uid(), text: String(c.text || ''), done: !!c.done })) : []
       })) : []
     };
@@ -5681,12 +6409,13 @@ function normalizeImport(data){
       trip.budget = {
         total: Number(t.budget.total) || 0,
         categories: Array.isArray(t.budget.categories) ? t.budget.categories.map(c=>({ id: c.id || uid(), name: String(c.name || 'Категория'), planned: Number(c.planned) || 0, color: c.color || '#8e8e93' })) : [],
-        expenses: Array.isArray(t.budget.expenses) ? t.budget.expenses.map(e=>({
+                expenses: Array.isArray(t.budget.expenses) ? t.budget.expenses.map(e=>({
           id: e.id || uid(), title: String(e.title || ''),
           amount: Number(e.amount) || 0, date: String(e.date || ''),
           categoryId: e.categoryId || '', note: String(e.note || ''),
           priceInRUB: !!e.priceInRUB, isPrepaid: !!e.isPrepaid,
-          paidBy: String(e.paidBy || ''), splitWith: Math.max(1, parseInt(e.splitWith, 10) || 1)
+          paidBy: String(e.paidBy || ''), splitWith: Math.max(1, parseInt(e.splitWith, 10) || 1),
+          linkedActivityId: e.linkedActivityId || null
         })) : [],
         savings: Array.isArray(t.budget.savings) ? t.budget.savings.map(s=>({
           id: s.id || uid(), title: String(s.title || ''),
@@ -5758,34 +6487,111 @@ function normalizeImport(data){
   }).filter(Boolean);
 }
 function askImportMode(incoming){
+  const nowCount = trips.length;
   openModal(`
-    <div class="modal-head"><h3>Импорт поездок</h3><button class="btn-ghost" onclick="closeModal()">Отмена</button></div>
+    <div class="modal-head">
+      <h3>Импорт поездок</h3>
+      <button class="btn-ghost" onclick="closeModal()">Отмена</button>
+    </div>
     <div class="modal-body">
-      <p style="margin:0;font-size:14px;color:var(--muted)">В файле найдено поездок: <b style="color:var(--text)">${incoming.length}</b>. Что сделать?</p>
+      <p style="margin:0;font-size:14px;color:var(--muted);line-height:1.55">
+        В файле: <b style="color:var(--text)">${incoming.length}</b>
+        ${incoming.length === 1 ? 'поездка' : 'поездок'}.
+        Сейчас в приложении: <b style="color:var(--text)">${nowCount}</b>.
+      </p>
       <div class="menu-list" style="margin-top:8px">
+        <button class="menu-item" onclick='doImport("add-new", ${JSON.stringify(incoming).replace(/'/g,"&#39;")})'>
+          <span class="emoji">➕</span>
+          <span class="label">
+            Добавить как новые
+            <span class="hint"><br>Каждой поездке — новый id. Старые не тронутся.</span>
+          </span>
+        </button>
         <button class="menu-item" onclick='doImport("merge", ${JSON.stringify(incoming).replace(/'/g,"&#39;")})'>
-          <span class="emoji">🔀</span><span class="label">Объединить</span>
+          <span class="emoji">🔀</span>
+          <span class="label">
+            Объединить
+            <span class="hint"><br>Пропустить поездки, которые уже есть (по id).</span>
+          </span>
         </button>
         <button class="menu-item" onclick='doImport("replace", ${JSON.stringify(incoming).replace(/'/g,"&#39;")})'>
-          <span class="emoji">♻️</span><span class="label">Заменить</span>
+          <span class="emoji">♻️</span>
+          <span class="label">
+            Заменить всё
+            <span class="hint"><br>Стереть текущие и загрузить только из файла.</span>
+          </span>
         </button>
       </div>
     </div>`);
 }
 function doImport(mode, incoming){
   if(typeof incoming === 'string') incoming = JSON.parse(incoming);
+
   let addedCount = 0;
-  if(mode === 'replace'){ trips = incoming; addedCount = incoming.length; }
-  else {
-    const existingIds = new Set(trips.map(t=>t.id));
-    const added = incoming.filter(t=>!existingIds.has(t.id));
-    addedCount = added.length;
-    trips = trips.concat(added);
+  let skippedCount = 0;
+
+  if(mode === 'replace'){
+    // Полная замена: стираем всё, кладём как есть (с их id)
+    trips = incoming.map(t => ensureTrip(t));
+    addedCount = trips.length;
   }
+  else if(mode === 'add-new'){
+    // Добавляем всё, каждой поездке даём новый id,
+    // чтобы гарантированно не пересекаться с существующими
+    const prepared = incoming.map(t => {
+      const copy = JSON.parse(JSON.stringify(t)); // глубокая копия
+      copy.id = uid();
+      // Вложения не переносятся (blob в JSON нет) — чистим ссылки,
+      // чтобы на карточках не было "мёртвых" 📎.
+      // PDF нужно прикрепить заново — это ожидаемое поведение.
+      if(Array.isArray(copy.tickets)){
+        copy.tickets.forEach(tk => {
+          if(tk.attachmentId){
+            delete tk.attachmentId;
+            delete tk.attachmentName;
+            delete tk.attachmentSize;
+            delete tk.attachmentType;
+          }
+        });
+      }
+      if(Array.isArray(copy.lodging)){
+        copy.lodging.forEach(l => {
+          if(l.attachmentId){
+            delete l.attachmentId;
+            delete l.attachmentName;
+            delete l.attachmentSize;
+            delete l.attachmentType;
+          }
+        });
+      }
+      // Не переносим временные кэши в новую поездку
+      delete copy._weatherByDate;
+      delete copy._ticketGeoCache;
+      delete copy._autoFailed;
+      return ensureTrip(copy);
+    });
+    trips = trips.concat(prepared);
+    addedCount = prepared.length;
+  }
+  else {
+    // merge: добавляем только те, чьи id ещё не заняты
+    const existingIds = new Set(trips.map(t => t.id));
+    const added = incoming.filter(t => !existingIds.has(t.id));
+    skippedCount = incoming.length - added.length;
+    trips = trips.concat(added.map(t => ensureTrip(t)));
+    addedCount = added.length;
+  }
+
   DB.save(trips);
   closeModal();
   render();
-  setTimeout(()=> alert(mode === 'replace' ? `Загружено: ${addedCount}.` : `Добавлено: ${addedCount}.`), 50);
+
+  let msg = '';
+  if(mode === 'replace')      msg = `Загружено: ${addedCount}.`;
+  else if(mode === 'add-new') msg = `Добавлено новых поездок: ${addedCount}.`;
+  else                        msg = `Добавлено: ${addedCount}.${skippedCount ? ' Пропущено дублей: ' + skippedCount + '.' : ''}`;
+
+  setTimeout(() => alert(msg), 50);
 }
 
 /* =============== ПОИСК АДРЕСА =============== */
@@ -5867,8 +6673,9 @@ function migratePrepaidExpenses(){
 /* =============== МИГРАЦИЯ ТЕМ =============== */
 (function migrateLegacyTheme(){
   const saved = localStorage.getItem('theme');
-  if(saved === 'picky' || saved === 'oldmoney'){
-    localStorage.setItem('theme', 'light');
+  // Только oldmoney уходит — picky вернулась
+  if(saved === 'oldmoney'){
+    localStorage.setItem('theme', 'picky');
   }
 })();
 
@@ -5887,6 +6694,11 @@ if ('serviceWorker' in navigator) {
     );
   });
 }
+
+/* Глобальный ресайз для тулбара карты */
+window.addEventListener('resize', () => {
+  if(document.getElementById('route-toolbar')) updateRouteToolbarState();
+}, { passive: true });
 </script>
 </body>
 </html>
