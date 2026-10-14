@@ -1990,14 +1990,6 @@ function setTripTab(tab){
     tripMapLayer = null;
   }
 
-  state.tripTab = tab;
-
-  function setTripTab(tab){
-  if(state.tripTab === 'map' && tab !== 'map'){
-    if(tripMap){ tripMap.remove(); tripMap = null; }
-    tripMapLayer = null;
-  }
-
   const changed = state.tripTab !== tab;
   state.tripTab = tab;
 
@@ -4982,9 +4974,11 @@ function openTripMenu(){
     <div class="modal-body">
       <div class="menu-list">
         <button class="menu-item" onclick="editTripFromMenu()"><span class="emoji">✏️</span><span class="label">Редактировать поездку</span></button>
-        <button class="menu-item" onclick="openPrintModal()">
-  <span class="emoji">🖨️</span>
-  <span class="label">Печать / Сохранить в PDF<span class="hint"><br>Дорожная книга для печати</span></span></button>
+                <button class="menu-item" onclick="openPrintModal()">
+          <span class="emoji">🖨️</span>
+          <span class="label">Печать / Сохранить в PDF<span class="hint"><br>Дорожная книга для печати</span></span>
+        </button>
+        <button class="menu-item" onclick="exportTrip('${trip.id}')"><span class="emoji">📤</span><span class="label">Экспорт этой поездки</span></button>
         <button class="menu-item" onclick="deleteTripFromMenu('${trip.id}')"><span class="emoji">🗑️</span><span class="label">Удалить поездку</span></button>
         <button class="menu-item" onclick="openContactsModal()"><span class="emoji">💬</span><span class="label">Связаться с нами<span class="hint"><br>${esc(APP_INFO.name)}</span></span></button>
       </div>
@@ -5613,7 +5607,6 @@ ${cover}
 ${body}
 </body>
 </html>`;
-}
 }
 
 /* =============== ЭКСПОРТ / ИМПОРТ =============== */
