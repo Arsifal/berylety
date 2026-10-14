@@ -928,6 +928,21 @@ html{
     margin-top: 8px;
   }
 
+    /* Заголовок группы обычных контактов — симметрично banned-block */
+  .contacts-block{
+    margin-top: 4px;
+  }
+  .contacts-block-title{
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    font-weight: 700;
+    margin: 6px 0 4px;
+  }
+
+    .contacts-block .menu-item:last-child{ border-bottom: none; }
+
   /* Ссылки-пункты в стиле .menu-item — у <a> убираем подчёркивание */
   a.menu-item{ text-decoration: none; }
   a.menu-item:visited{ color: var(--text); }
@@ -996,6 +1011,87 @@ html{
   }
   .attach-actions .btn-mini:hover{ background: var(--border); }
   .attach-actions .btn-mini.danger{ color: var(--danger); }
+
+    /* =========================================================
+     ЗАПРЕЩЁННЫЕ В РФ СОЦСЕТИ — информационный блок
+     ========================================================= */
+  .banned-block{
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+  }
+  .banned-block-title{
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .banned-card{
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warn);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .banned-card:last-child{ margin-bottom: 0; }
+  .banned-head{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .banned-icon{ font-size: 18px; }
+  .banned-name{
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .banned-tag{
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    background: var(--warn);
+    color: #000;
+    padding: 2px 7px;
+    border-radius: 999px;
+    margin-left: auto;
+  }
+  .banned-text{
+    margin: 0 0 10px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .banned-reveal{
+    background: var(--bg-elev);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .banned-reveal:hover{ background: var(--border); }
+  .banned-url{
+    margin-top: 8px;
+  }
+  .banned-url code{
+    display: block;
+    font-size: 12px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    word-break: break-all;
+    color: var(--text);
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    user-select: all;
+  }
 </style>
 </head>
 <body>
@@ -1100,13 +1196,37 @@ async function openAttachment(id){
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+/* Открывает вложение, зная контекст:
+   - kind: 'ticket' | 'lodging'
+   - id:   id билета/жилья в trip
+   Если файла нет в IndexedDB — открывает модалку редактирования,
+   чтобы пользователь мог прикрепить его заново. */
+async function openAttachmentSmart(kind, entityId, attachmentId){
+  const a = attachmentId ? await getAttachment(attachmentId) : null;
+  if(a && a.blob){
+    const url = URL.createObjectURL(a.blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return;
+  }
+  // Файла нет — предлагаем прикрепить
+  const label = kind === 'lodging' ? 'жилья' : 'билета';
+  if(confirm(`Файл не найден на этом устройстве.\nОткрыть карточку ${label}, чтобы прикрепить заново?`)){
+    if(kind === 'lodging') openLodgingModal(entityId);
+    else openTicketModal(entityId);
+  }
+}
+
 /* =============== КОНТАКТЫ И О ПРИЛОЖЕНИИ =============== */
 const APP_INFO = {
   name: 'БериЛети',
   tagline: 'тур-компания',
   version: '1.0',
   // Заполни реальными данными. Пустая строка = пункт не показывается.
-  telegram: 'https://t.me/beriiletita',             // полная ссылк
+  telegram: 'https://t.me/beriiletita',             // полная ссылка
+  // Запрещённые в РФ соцсети. Показываются только как текстовое
+  // упоминание с предупреждением. Никаких <a href> и перехода в один клик.
+  instagram: 'https://www.instagram.com/berileti_ta?stkn=MW41c3hkbTNvdjJhbg%3D%3D&utm_source=qr',
 };
 
 function applyTheme(theme){
@@ -1193,6 +1313,90 @@ let state = {
   tripTab:'plan', ticketSegments:[], mapFilter:'all',
   mapMode:'points', routeDay:null, routeReturn:true, routeOrder:'distance'
 };
+
+/* =============== ИСТОРИЯ (системная кнопка «назад») =============== */
+const HistoryMgr = {
+  // Стек того, «куда мы хотим попасть» при popstate.
+  // Мы не полагаемся на event.state целиком, а держим свою модель экранов —
+  // это надёжнее при переходах вида «модалка поверх модалки».
+  stack: [{ view: 'list' }],
+  suppressPush: false,
+
+  current(){
+    return this.stack[this.stack.length - 1] || { view: 'list' };
+  },
+
+  push(entry){
+    if(this.suppressPush) return;
+    this.stack.push(entry);
+    history.pushState({ idx: this.stack.length - 1 }, '');
+  },
+
+  // Заменяем верхушку стека (например, при переключении вкладок)
+  replace(entry){
+    if(this.stack.length <= 1){
+      this.stack = [entry];
+      history.replaceState({ idx: 0 }, '');
+      return;
+    }
+    this.stack[this.stack.length - 1] = entry;
+    // В history тоже оставляем ту же запись, ничего не пушим
+  },
+
+  // Убрать верхушку, когда мы её закрыли сами (клик по overlay, кнопка Готово)
+  popSilently(){
+    if(this.stack.length <= 1) return false;
+    this.stack.pop();
+    history.back(); // popstate выстрелит, но мы его проигнорируем через флаг
+    this._ignoreNext = true;
+    return true;
+  },
+
+  _ignoreNext: false,
+
+  handleBack(){
+    if(this._ignoreNext){
+      this._ignoreNext = false;
+      return;
+    }
+    if(this.stack.length <= 1){
+      // Мы уже в корне — отдаём управление системе (закроет приложение)
+      return false;
+    }
+    this.stack.pop();
+    this.apply(this.current());
+    return true;
+  },
+
+  apply(entry){
+    // Закрываем модалки, если по стеку мы не в модалке
+    if(!entry.modal && document.getElementById('modal').classList.contains('show')){
+      closeModalFromHistory();
+    }
+    // Переключаем экран
+    if(entry.view === 'list'){
+      state.view = 'list';
+      render();
+    } else if(entry.view === 'trip'){
+      state.view = 'trip';
+      state.tripId = entry.tripId;
+      state.tripTab = entry.tab || 'plan';
+      render();
+    } else if(entry.view === 'new'){
+      state.view = 'new';
+      render();
+    } else if(entry.view === 'editTrip'){
+      state.view = 'editTrip';
+      state.tripId = entry.tripId;
+      render();
+    }
+    // Если в стеке была модалка — её уже закрыли выше через closeModalFromHistory
+  }
+};
+
+window.addEventListener('popstate', () => {
+  HistoryMgr.handleBack();
+});
 
 const DEFAULT_CATEGORIES = [
   { name:'Жильё', color:'#2aabee' },
@@ -1507,7 +1711,7 @@ function renderList(){
     ? `<div class="empty emoji-search">Ничего не найдено.<br>Попробуйте изменить запрос или фильтр.</div>`
     : groups.map(groupBlock).join('')}
     </div>
-    <button class="btn fab" onclick="state.view='new';render()">+</button>
+        <button class="btn fab" onclick="openNewTrip()">+</button>
   `;
   const si = document.getElementById('search-input');
   if(si && state.query){
@@ -1564,7 +1768,7 @@ function setFilter(f){ state.filter=f; render(); }
 function renderNew(){
   app.innerHTML = `
     <header>
-      <button class="back" onclick="state.view='list';render()">‹</button>
+            <button class="back" onclick="goBack()">‹</button>
       <h1>Новая поездка</h1>
       <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
     </header>
@@ -1617,7 +1821,7 @@ function renderEditTrip(){
   if(!trip){ state.view='list'; return render(); }
   app.innerHTML = `
     <header>
-      <button class="back" onclick="state.view='trip';render()">‹</button>
+            <button class="back" onclick="goBack()">‹</button>
       <h1>Редактировать</h1>
       <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
     </header>
@@ -1664,14 +1868,41 @@ function saveTripEdit(){
   DB.save(trips);
   state.view='trip'; render();
 }
-function openTrip(id){ state.view='trip'; state.tripId=id; state.tripTab='plan'; render(); }
+function openTrip(id){
+  state.view='trip'; state.tripId=id; state.tripTab='plan';
+  HistoryMgr.push({ view:'trip', tripId:id, tab:'plan' });
+  render();
+}
+
+function openNewTrip(){
+  state.view = 'new';
+  HistoryMgr.push({ view:'new' });
+  render();
+}
+
+function goBack(){
+  if(HistoryMgr.stack.length > 1){
+    history.back();
+  } else {
+    state.view = 'list';
+    render();
+  }
+}
+
 function deleteTrip(id){
   if(!confirm('Удалить поездку?')) return;
   const doomed = trips.find(t => t.id === id);
-  if(doomed && Array.isArray(doomed.tickets)){
-    doomed.tickets.forEach(tk => {
-      if(tk.attachmentId) deleteAttachment(tk.attachmentId);
-    });
+  if(doomed){
+    if(Array.isArray(doomed.tickets)){
+      doomed.tickets.forEach(tk => {
+        if(tk.attachmentId) deleteAttachment(tk.attachmentId);
+      });
+    }
+    if(Array.isArray(doomed.lodging)){
+      doomed.lodging.forEach(l => {
+        if(l.attachmentId) deleteAttachment(l.attachmentId);
+      });
+    }
   }
   trips = trips.filter(t=>t.id!==id); DB.save(trips);
   state.view='list'; render();
@@ -1685,7 +1916,7 @@ function renderTrip(){
   // Рисуем каркас поездки только один раз
   app.innerHTML = `
     <header>
-      <button class="back" onclick="state.view='list';render()">‹</button>
+            <button class="back" onclick="goBack()">‹</button>
       <h1>${esc(trip.title)}</h1>
       <button class="icon-btn" onclick="openTripMenu()" title="Меню поездки">⋯</button>
       <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
@@ -1761,6 +1992,19 @@ function setTripTab(tab){
 
   state.tripTab = tab;
 
+  function setTripTab(tab){
+  if(state.tripTab === 'map' && tab !== 'map'){
+    if(tripMap){ tripMap.remove(); tripMap = null; }
+    tripMapLayer = null;
+  }
+
+  const changed = state.tripTab !== tab;
+  state.tripTab = tab;
+
+  if(changed){
+    HistoryMgr.push({ view:'trip', tripId: state.tripId, tab });
+  }
+
   // Обновляем активную вкладку
   const tabsEl = document.getElementById('trip-tabs');
   if(tabsEl){
@@ -1776,8 +2020,6 @@ function setTripTab(tab){
     updateTripFab(trip);
   }
 }
-
-/* =============== ПОГОДА =============== */
 
 /* =============== ПОГОДА =============== */
 const WEATHER_EMOJI = { 0:'☀️', 1:'🌤️', 2:'⛅', 3:'☁️', 45:'🌫️', 48:'🌫️', 51:'🌦️', 53:'🌦️', 55:'🌦️', 56:'🌧️', 57:'🌧️', 61:'🌧️', 63:'🌧️', 65:'🌧️', 66:'🌧️', 67:'🌧️', 71:'🌨️', 73:'🌨️', 75:'❄️', 77:'❄️', 80:'🌦️', 81:'🌧️', 82:'⛈️', 85:'🌨️', 86:'❄️', 95:'⛈️', 96:'⛈️', 99:'⛈️' };
@@ -2791,12 +3033,16 @@ function lodgingCard(l, trip){
   const dates = (inDate || outDate) ? `📅 ${inDate}${inTime} → ${outDate}${outTime}` : '📅 Даты не указаны';
   const priceLine = l.price ? `💰 ${fmtMoney(l.price, 'RUB')}${l.priceNote?' · '+esc(l.priceNote):''}` : '';
   const addrLine = l.address ? `📍 ${esc(l.address)}` : '';
-  const mapLinks = l.lat!=null && l.lng!=null ? `
+  const hasCoords = l.lat != null && l.lng != null;
+  const hasLink   = !!l.link;
+  const hasFile   = !!l.attachmentId;
+  const mapLinks = (hasCoords || hasLink || hasFile) ? `
     <div class="map-links" onclick="event.stopPropagation()">
-      <a href="https://yandex.ru/maps/?pt=${l.lng},${l.lat}&z=15&l=map" target="_blank">🟡 Яндекс</a>
-      <a href="https://www.google.com/maps/search/?api=1&query=${l.lat},${l.lng}" target="_blank">🔵 Google</a>
-      ${l.link?`<a href="${esc(l.link)}" target="_blank">🔗 Бронь</a>`:''}
-    </div>` : (l.link ? `<div class="map-links" onclick="event.stopPropagation()"><a href="${esc(l.link)}" target="_blank">🔗 Бронь</a></div>` : '');
+      ${hasCoords ? `<a href="https://yandex.ru/maps/?pt=${l.lng},${l.lat}&z=15&l=map" target="_blank">🟡 Яндекс</a>` : ''}
+      ${hasCoords ? `<a href="https://www.google.com/maps/search/?api=1&query=${l.lat},${l.lng}" target="_blank">🔵 Google</a>` : ''}
+      ${hasLink ? `<a href="${esc(l.link)}" target="_blank">🔗 Бронь</a>` : ''}
+      ${hasFile ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();openAttachmentSmart('lodging','${l.id}','${esc(l.attachmentId)}');return false;">📄 Файл</a>` : ''}
+    </div>` : '';
   return `<div class="lodge-card" onclick="openLodgingModal('${l.id}')">
     <div class="title"><span class="icon">🏠</span>${esc(l.title||'Жильё')}</div>
     <div class="dates">${dates}</div>
@@ -2810,6 +3056,8 @@ function openLodgingModal(id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   const l = id ? (trip.lodging||[]).find(x=>x.id===id) : null;
   const isNew = !l;
+  state._editingLodgingId = l ? l.id : null;
+  state._lodgingAttachDraft = null;
   openModal(`
     <div class="modal-head"><h3>${isNew ? 'Новое жильё' : 'Редактировать жильё'}</h3><button class="btn-ghost" onclick="closeModal()">Готово</button></div>
     <div class="modal-body">
@@ -2836,6 +3084,11 @@ function openLodgingModal(id){
         <div><label>За что</label><input id="l-price-note" placeholder="за ночь / за всё" value="${l?esc(l.priceNote||''):''}" /></div>
       </div>
       <div><label>Ссылка на бронь</label><input id="l-link" placeholder="https://..." value="${l?esc(l.link||''):''}" /></div>
+            <div>
+        <label>PDF или изображение брони</label>
+        <input type="file" id="l-attach-input" accept="${ATTACH_ACCEPT}" style="display:none" />
+        <div id="l-attach-box">${lodgingAttachBoxHtml(l)}</div>
+      </div>
       <div><label>Заметки</label><textarea id="l-notes" rows="3">${l?esc(l.notes||''):''}</textarea></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);margin-top:4px">
         <input type="checkbox" id="l-add-expense" style="width:auto;margin:0" ${isNew?'checked':''} />
@@ -2852,7 +3105,115 @@ function openLodgingModal(id){
     addrInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); searchLodgingAddress(); } });
   }
   setTimeout(()=>{ document.addEventListener('click', outsideLodgingClick, { once:true }); }, 0);
+  bindLodgingAttachControls();
+  if(l && l.attachmentId) hydrateLodgingAttachBox(l.attachmentId);
 }
+function lodgingAttachBoxHtml(l){
+  const aid = l && l.attachmentId;
+  if(!aid){
+    return `<button type="button" class="attach-drop" id="l-attach-btn"
+              onclick="document.getElementById('l-attach-input').click()">
+      📎 Прикрепить PDF или фото брони
+      <span class="attach-hint">PDF · JPG · PNG · до 15 МБ</span>
+    </button>`;
+  }
+  const name = l.attachmentName || 'файл';
+  const size = l.attachmentSize ? fmtBytes(l.attachmentSize) : '';
+  const icon = (l.attachmentType && l.attachmentType.startsWith('image/')) ? '🖼️'
+             : (l.attachmentType === 'application/pdf') ? '📄' : '📎';
+  return `<div class="attach-row" id="l-attach-row" data-aid="${esc(aid)}">
+    <span class="attach-icon">${icon}</span>
+    <div class="attach-body">
+      <div class="attach-name">${esc(name)}</div>
+      <div class="attach-meta">${size ? esc(size) : ''} <span class="attach-status">· проверяю…</span></div>
+    </div>
+    <div class="attach-actions">
+            <button type="button" class="btn-mini" onclick="openAttachmentSmart('lodging','${esc(state._editingLodgingId||'')}','${esc(aid)}')">Открыть</button>
+      <button type="button" class="btn-mini" onclick="document.getElementById('l-attach-input').click()">Заменить</button>
+      <button type="button" class="btn-mini danger" onclick="removeLodgingAttachment()">✕</button>
+    </div>
+  </div>`;
+}
+async function hydrateLodgingAttachBox(aid){
+  const a = await getAttachment(aid);
+  const status = document.querySelector('#l-attach-row .attach-status');
+  if(!status) return;
+  if(a){
+    status.textContent = '· на устройстве';
+    status.style.color = 'var(--ok)';
+  } else {
+    status.textContent = '· не перенесён (прикрепите заново)';
+    status.style.color = 'var(--warn)';
+  }
+}
+function bindLodgingAttachControls(){
+  const input = document.getElementById('l-attach-input');
+  if(!input) return;
+  input.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    try{
+      const rec = await saveAttachment(file);
+      const lid = document.getElementById('l-attach-row')?.dataset?.aid ? null : null; // просто заглушка
+      // Определяем, редактируем существующее жильё или создаём новое
+      const editingId = state._editingLodgingId || null;
+      if(editingId){
+        const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+        const l = trip.lodging.find(x => x.id === editingId);
+        if(l){
+          if(l.attachmentId) deleteAttachment(l.attachmentId);
+          l.attachmentId   = rec.id;
+          l.attachmentName = rec.name;
+          l.attachmentSize = rec.size;
+          l.attachmentType = rec.type;
+          DB.save(trips);
+        }
+      } else {
+        state._lodgingAttachDraft = rec;
+      }
+      const box = document.getElementById('l-attach-box');
+      if(box){
+        const fake = {
+          attachmentId: rec.id,
+          attachmentName: rec.name,
+          attachmentSize: rec.size,
+          attachmentType: rec.type
+        };
+        box.innerHTML = lodgingAttachBoxHtml(fake);
+        hydrateLodgingAttachBox(rec.id);
+      }
+    }catch(err){
+      alert(err.message || 'Не удалось сохранить файл');
+    }finally{
+      input.value = '';
+    }
+  });
+}
+function removeLodgingAttachment(){
+  if(!confirm('Убрать вложение?')) return;
+  const editingId = state._editingLodgingId || null;
+  if(editingId){
+    const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+    const l = trip.lodging.find(x => x.id === editingId);
+    if(l && l.attachmentId){
+      deleteAttachment(l.attachmentId);
+      delete l.attachmentId;
+      delete l.attachmentName;
+      delete l.attachmentSize;
+      delete l.attachmentType;
+      DB.save(trips);
+    }
+  } else {
+    if(state._lodgingAttachDraft){
+      deleteAttachment(state._lodgingAttachDraft.id);
+      state._lodgingAttachDraft = null;
+    }
+  }
+  const box = document.getElementById('l-attach-box');
+  if(box) box.innerHTML = lodgingAttachBoxHtml(null);
+  bindLodgingAttachControls();
+}
+
 function outsideLodgingClick(e){
   const box = document.getElementById('l-suggestions');
   if(box && !e.target.closest('.coords-wrap')) box.innerHTML = '';
@@ -2872,7 +3233,33 @@ function saveLodging(id){
   const link = document.getElementById('l-link').value.trim();
   const notes = document.getElementById('l-notes').value.trim();
   const addExpense = document.getElementById('l-add-expense').checked;
-  const data = { title, address, lat, lng, checkInDate, checkInTime, checkOutDate, checkOutTime, price, priceNote, link, notes };
+    const data = { title, address, lat, lng, checkInDate, checkInTime, checkOutDate, checkOutTime, price, priceNote, link, notes };
+  // Привязка вложения
+  data.attachmentId   = null;
+  data.attachmentName = null;
+  data.attachmentSize = null;
+  data.attachmentType = null;
+  let attach = null;
+  if(state._lodgingAttachDraft){
+    attach = state._lodgingAttachDraft;
+    state._lodgingAttachDraft = null;
+  } else if(id){
+    const existing = trip.lodging.find(x=>x.id===id);
+    if(existing && existing.attachmentId){
+      attach = {
+        id: existing.attachmentId,
+        name: existing.attachmentName,
+        size: existing.attachmentSize,
+        type: existing.attachmentType
+      };
+    }
+  }
+  if(attach){
+    data.attachmentId   = attach.id;
+    data.attachmentName = attach.name || 'файл';
+    data.attachmentSize = attach.size || 0;
+    data.attachmentType = attach.type || '';
+  }
   if(id){
     const l = trip.lodging.find(x=>x.id===id);
     Object.assign(l, data);
@@ -2884,6 +3271,8 @@ function saveLodging(id){
     if(!cat){ cat = { id: uid(), name:'Жильё', planned:0, color:'#2aabee' }; trip.budget.categories.push(cat); }
     trip.budget.expenses.push({ id: uid(), title: `${title} (жильё)`, amount: price, date: checkInDate || todayISO(), categoryId: cat.id, note: priceNote || '', priceInRUB: true, isPrepaid: true });
   }
+    state._editingLodgingId = null;
+  state._lodgingAttachDraft = null;
   DB.save(trips);
   closeModal();
   render();
@@ -2891,6 +3280,10 @@ function saveLodging(id){
 function deleteLodging(id){
   if(!confirm('Удалить это жильё?')) return;
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+  const doomed = trip.lodging.find(l => l.id === id);
+  if(doomed && doomed.attachmentId){
+    deleteAttachment(doomed.attachmentId);
+  }
   trip.lodging = trip.lodging.filter(l => l.id !== id);
   DB.save(trips);
   closeModal();
@@ -3024,8 +3417,17 @@ function ticketCard(t, trip){
       ${priceLine}
     </div>
     <div class="ticket-barcode">${bars}</div>
-    ${mapLink?`<div class="map-links" style="padding:0 14px 12px" onclick="event.stopPropagation()"><a href="${mapLink}" target="_blank">🗺️ Открыть маршрут</a>${t.link?`<a href="${esc(t.link)}" target="_blank">🔗 Бронь</a>`:''}</div>`
-      : (t.link ? `<div class="map-links" style="padding:0 14px 12px" onclick="event.stopPropagation()"><a href="${esc(t.link)}" target="_blank">🔗 Бронь</a></div>` : '')}
+        ${(() => {
+      const hasMap = !!mapLink;
+      const hasLink = !!t.link;
+      const hasFile = !!t.attachmentId;
+      if(!hasMap && !hasLink && !hasFile) return '';
+      return `<div class="map-links" style="padding:0 14px 12px" onclick="event.stopPropagation()">
+        ${hasMap ? `<a href="${mapLink}" target="_blank">🗺️ Открыть маршрут</a>` : ''}
+        ${hasLink ? `<a href="${esc(t.link)}" target="_blank">🔗 Бронь</a>` : ''}
+        ${hasFile ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();openAttachmentSmart('ticket','${t.id}','${esc(t.attachmentId)}');return false;">📄 Файл</a>` : ''}
+      </div>`;
+    })()}
   </div>`;
 }
 function openTicketModal(id){
@@ -3128,7 +3530,7 @@ function ticketAttachBoxHtml(t){
       <div class="attach-meta">${size ? esc(size) : ''} <span class="attach-status">· проверяю…</span></div>
     </div>
     <div class="attach-actions">
-      <button type="button" class="btn-mini" onclick="openAttachment('${esc(aid)}')">Открыть</button>
+      <button type="button" class="btn-mini" onclick="openAttachmentSmart('ticket','${esc(t.id||'')}','${esc(aid)}')">Открыть</button>
       <button type="button" class="btn-mini" onclick="document.getElementById('tk-attach-input').click()">Заменить</button>
       <button type="button" class="btn-mini danger" onclick="removeTicketAttachment()">✕</button>
     </div>
@@ -4352,24 +4754,56 @@ function copyPackingFrom(sourceTripId){
 const overlay = document.getElementById('overlay');
 const modal = document.getElementById('modal');
 function openModal(html){
+  const wasOpen = modal.classList.contains('show');
   modal.innerHTML = html;
   overlay.classList.add('show');
   modal.classList.add('show');
+  // Пуш в историю только при переходе из закрытого состояния
+  // (подмодалки — тоже push, это ок)
+  HistoryMgr.push({ ...HistoryMgr.current(), modal: true });
 }
 let modalCloseTimer = null;
 
 function closeModal(){
+  const wasOpen = modal.classList.contains('show');
   overlay.classList.remove('show');
   modal.classList.remove('show');
+  // Если модалка была открыта и мы закрываем её вручную —
+  // убираем запись из стека, чтобы кнопка «назад» не пыталась её закрыть снова
+  if(wasOpen) HistoryMgr.popSilently();
   if(modalCloseTimer) clearTimeout(modalCloseTimer);
   modalCloseTimer = setTimeout(()=>{
-    // Не чистим, если за это время открыли новую модалку
     if(modal.classList.contains('show')) return;
     modal.innerHTML='';
     state.editingId=null;
     state.tempChecklist=null;
     state.ticketSegments=[];
     state._ticketDraft = null;
+    state._ticketAttachDraft = null;
+    state._editingTicketId = null;
+    state._editingLodgingId = null;
+    state._lodgingAttachDraft = null;
+    modalCloseTimer = null;
+  }, 300);
+}
+
+// Закрытие модалки, вызванное системной кнопкой «назад» —
+// здесь НЕ надо popSilently, история уже откатилась через popstate
+function closeModalFromHistory(){
+  overlay.classList.remove('show');
+  modal.classList.remove('show');
+  if(modalCloseTimer) clearTimeout(modalCloseTimer);
+  modalCloseTimer = setTimeout(()=>{
+    if(modal.classList.contains('show')) return;
+    modal.innerHTML='';
+    state.editingId=null;
+    state.tempChecklist=null;
+    state.ticketSegments=[];
+    state._ticketDraft = null;
+    state._ticketAttachDraft = null;
+    state._editingTicketId = null;
+    state._editingLodgingId = null;
+    state._lodgingAttachDraft = null;
     modalCloseTimer = null;
   }, 300);
 }
@@ -4440,6 +4874,34 @@ function openContactsModal(){
       </a>`);
   }
 
+  // Блок запрещённых в РФ соцсетей — с предупреждением, без <a href>
+  const banned = [];
+  if(APP_INFO.instagram) banned.push({ icon:'📷', name:'Instagram', url: APP_INFO.instagram });
+  if(APP_INFO.facebook)  banned.push({ icon:'📘', name:'Facebook',  url: APP_INFO.facebook });
+
+  const bannedHtml = banned.map(b => `
+    <div class="banned-card">
+      <div class="banned-head">
+        <span class="banned-icon">${b.icon}</span>
+        <span class="banned-name">${esc(b.name)}</span>
+        <span class="banned-tag">запрещено в РФ</span>
+      </div>
+      <p class="banned-text">
+        Деятельность Meta Platforms Inc. (${esc(b.name)}) признана экстремистской
+        и запрещена на территории Российской Федерации.
+        Упоминание носит информационный характер и не является рекламой
+        или призывом к использованию.
+      </p>
+      <button type="button" class="btn-mini banned-reveal"
+              onclick="toggleBannedUrl(this, '${esc(b.url)}')">
+        Показать ссылку
+      </button>
+      <div class="banned-url" hidden>
+        <code>${esc(b.url)}</code>
+      </div>
+    </div>
+  `).join('');
+
   openModal(`
     <div class="modal-head">
       <h3>Связаться с нами</h3>
@@ -4450,10 +4912,40 @@ function openContactsModal(){
         <div class="contacts-brand">${esc(APP_INFO.name)}</div>
         <div class="contacts-tagline">${esc(APP_INFO.tagline)}</div>
       </div>
-      <div class="menu-list">
-        ${items.length ? items.join('') : `<p class="muted center" style="padding:20px 0">Контакты ещё не заполнены.</p>`}
+            <div class="contacts-block">
+        <div class="contacts-block-title">💬 Мы на связи</div>
+        <div class="menu-list">
+          ${items.length ? items.join('') : `<p class="muted center" style="padding:20px 0">Контакты ещё не заполнены.</p>`}
+        </div>
       </div>
+      ${banned.length ? `
+        <div class="banned-block">
+          <div class="banned-block-title">⚠️ Запрещённые в РФ соцсети</div>
+          ${bannedHtml}
+        </div>
+      ` : ''}
     </div>`);
+}
+
+function toggleBannedUrl(btn, url){
+  const box = btn.nextElementSibling;
+  if(!box) return;
+  const shown = !box.hasAttribute('hidden');
+  if(shown){
+    box.setAttribute('hidden', '');
+    btn.textContent = 'Показать ссылку';
+  } else {
+    box.removeAttribute('hidden');
+    btn.textContent = 'Скрыть ссылку';
+    // Выделяем текст, чтобы удобно скопировать
+    try{
+      const range = document.createRange();
+      range.selectNodeContents(box.querySelector('code'));
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }catch(e){}
+  }
 }
 
 function openAboutModal(){
@@ -4492,13 +4984,18 @@ function openTripMenu(){
         <button class="menu-item" onclick="editTripFromMenu()"><span class="emoji">✏️</span><span class="label">Редактировать поездку</span></button>
         <button class="menu-item" onclick="openPrintModal()">
   <span class="emoji">🖨️</span>
-  <span class="label">Печать / Сохранить в PDF<span class="hint"><br>Дорожная книга для печати</span></span>
+  <span class="label">Печать / Сохранить в PDF<span class="hint"><br>Дорожная книга для печати</span></span></button>
         <button class="menu-item" onclick="deleteTripFromMenu('${trip.id}')"><span class="emoji">🗑️</span><span class="label">Удалить поездку</span></button>
         <button class="menu-item" onclick="openContactsModal()"><span class="emoji">💬</span><span class="label">Связаться с нами<span class="hint"><br>${esc(APP_INFO.name)}</span></span></button>
       </div>
     </div>`);
 }
-function editTripFromMenu(){ closeModal(); state.view='editTrip'; render(); }
+function editTripFromMenu(){
+  closeModal();
+  state.view='editTrip';
+  HistoryMgr.push({ view:'editTrip', tripId: state.tripId });
+  render();
+}
 function deleteTripFromMenu(id){ closeModal(); setTimeout(()=> deleteTrip(id), 50); }
 
 /* =========================================================
@@ -4538,9 +5035,13 @@ function openPrintModal(){
           <input type="checkbox" id="pr-checklists" checked style="width:auto;margin:0" />
           Чек-листы
         </label>
-        <label style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text);font-weight:500;opacity:1;margin:0">
+                <label style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text);font-weight:500;opacity:1;margin:0">
           <input type="checkbox" id="pr-budget" checked style="width:auto;margin:0" />
           Бюджет
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text);font-weight:500;opacity:1;margin:0;padding-top:8px;border-top:1px dashed var(--border)">
+          <input type="checkbox" id="pr-bw" style="width:auto;margin:0" />
+          Чёрно-белая печать
         </label>
       </div>
       <div class="modal-foot">
@@ -4554,13 +5055,14 @@ function doPrint(){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   if(!trip) return;
 
-  const include = {
+    const include = {
     info: document.getElementById('pr-info').checked,
     lodging: document.getElementById('pr-lodging').checked,
     tickets: document.getElementById('pr-tickets').checked,
     activities: document.getElementById('pr-activities').checked,
     checklists: document.getElementById('pr-checklists').checked,
-    budget: document.getElementById('pr-budget').checked
+    budget: document.getElementById('pr-budget').checked,
+    bw: document.getElementById('pr-bw').checked
   };
 
   closeModal();
@@ -4588,281 +5090,530 @@ function buildPrintHtml(trip, include){
   const days = daysBetween(trip.start, trip.end);
   const esc2 = s => (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmtDateRu = d => d ? new Date(d).toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'}) : '—';
+  const fmtDateShort = d => d ? new Date(d).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '';
+  const fmtDayWeek = d => d ? new Date(d).toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'}) : '';
+
+  const BW = !!include.bw;
+  // Палитра (при BW — серые оттенки)
+  const C = BW ? {
+    green:'#1a1a1a', greenDark:'#000000', gold:'#4a4a4a',
+    text:'#000000', muted:'#555555', border:'#cccccc',
+    bgSoft:'#f4f4f4', bgCard:'#fafafa', bgCover:'#f0f0f0'
+  } : {
+    green:'#0c3b2c', greenDark:'#0d5c3f', gold:'#c8951e',
+    text:'#0c3b2c', muted:'#5c7a6d', border:'#d9cfb4',
+    bgSoft:'#f6f2e7', bgCard:'#fbf8f0', bgCover:'#0c3b2c'
+  };
+  const coverText = BW ? '#000000' : '#f5f2e8';
+  const coverAccent = BW ? '#cccccc' : '#eec33a';
+
+  const printedAt = new Date().toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
+
+  /* ---------- ОБЛОЖКА ---------- */
+  const cover = `
+    <section class="cover">
+      <div class="cover-brand">
+        <div class="cover-logo">БериЛети</div>
+        <div class="cover-tagline">тур-компания</div>
+      </div>
+      <div class="cover-title">${esc2(trip.title)}</div>
+      <div class="cover-meta">
+        ${trip.place ? `<div>${esc2(trip.place)}</div>` : ''}
+        ${trip.start || trip.end ? `<div>${fmtDateRu(trip.start)} — ${fmtDateRu(trip.end)}${days.length ? ' · ' + days.length + ' дн.' : ''}</div>` : ''}
+      </div>
+      <div class="cover-foot">Дорожная книга · ${printedAt}</div>
+    </section>
+    <div class="page-break"></div>
+  `;
 
   let body = '';
 
-  // Шапка
-  body += `<header class="doc-head">
-    <h1>${esc2(trip.title)}</h1>
-    <div class="doc-sub">
-      ${trip.place ? esc2(trip.place) + ' · ' : ''}
-      ${fmtDateRu(trip.start)} — ${fmtDateRu(trip.end)}
-    </div>
-  </header>`;
-
-  // Общая информация
+  /* ---------- ОБЩАЯ ИНФОРМАЦИЯ ---------- */
   if(include.info){
-    body += `<section>
-      <h2>Общая информация</h2>
-      <table class="kv">
-        <tr><td>Название</td><td>${esc2(trip.title)}</td></tr>
-        <tr><td>Место</td><td>${esc2(trip.place||'—')}</td></tr>
-        <tr><td>Даты</td><td>${fmtDateRu(trip.start)} — ${fmtDateRu(trip.end)} (${days.length} дн.)</td></tr>
-        ${trip.notes ? `<tr><td>Заметки</td><td>${esc2(trip.notes).replace(/\n/g,'<br>')}</td></tr>` : ''}
-      </table>
-    </section>`;
-  }
-
-  // Жильё
-  if(include.lodging && (trip.lodging||[]).length){
-    body += `<section>
-      <h2>🏠 Жильё</h2>
-      ${(trip.lodging||[]).map(l => `
-        <div class="card">
-          <div class="card-title">${esc2(l.title||'Жильё')}</div>
-          ${(l.checkInDate || l.checkOutDate) ? `<div class="line">📅 ${l.checkInDate?fmtDateRu(l.checkInDate):''}${l.checkInTime?', '+esc2(l.checkInTime):''} → ${l.checkOutDate?fmtDateRu(l.checkOutDate):''}${l.checkOutTime?', '+esc2(l.checkOutTime):''}</div>` : ''}
-          ${l.address ? `<div class="line">📍 ${esc2(l.address)}</div>` : ''}
-          ${l.price ? `<div class="line">💰 ${fmtMoney(l.price, 'RUB')}${l.priceNote?' · '+esc2(l.priceNote):''}</div>` : ''}
-          ${l.link ? `<div class="line">🔗 ${esc2(l.link)}</div>` : ''}
-          ${l.notes ? `<div class="line pre">${esc2(l.notes)}</div>` : ''}
+    const notes = trip.notes ? `<div class="info-notes"><div class="info-notes-label">Заметки</div><div class="info-notes-body">${esc2(trip.notes).replace(/\n/g,'<br>')}</div></div>` : '';
+    body += `
+      <section class="block">
+        <h2 class="block-title"><span class="block-title-bar"></span>О поездке</h2>
+        <div class="info-grid">
+          <div class="info-cell">
+            <div class="info-label">Место</div>
+            <div class="info-value">${esc2(trip.place||'—')}</div>
+          </div>
+          <div class="info-cell">
+            <div class="info-label">Даты</div>
+            <div class="info-value">${fmtDateRu(trip.start)} — ${fmtDateRu(trip.end)}</div>
+          </div>
+          <div class="info-cell">
+            <div class="info-label">Длительность</div>
+            <div class="info-value">${days.length ? days.length + ' дн.' : '—'}</div>
+          </div>
+          <div class="info-cell">
+            <div class="info-label">Валюта</div>
+            <div class="info-value">${esc2(trip.currency||'RUB')} ${curSym(trip.currency||'RUB')}</div>
+          </div>
         </div>
-      `).join('')}
-    </section>`;
+        ${notes}
+      </section>`;
   }
 
-  // Билеты
+  /* ---------- БИЛЕТЫ ---------- */
   if(include.tickets && (trip.tickets||[]).length){
-    body += `<section>
-      <h2>✈️ Билеты</h2>
-      ${(trip.tickets||[]).map(tk => {
-        const segs = tk.segments || [];
-        const first = segs[0] || {};
-        const last = segs[segs.length-1] || {};
-        const route = [first.from, ...segs.map(s=>s.to)].filter(Boolean).join(' → ');
-        return `
-          <div class="card">
-            <div class="card-title">${ticketIcon(tk.type)} ${ticketLabel(tk.type)}${tk.ticketNumber?' · '+esc2(tk.ticketNumber):''}</div>
-            <div class="line"><b>${esc2(route || '—')}</b></div>
-            ${first.departDate ? `<div class="line">🛫 Отправление: ${fmtDateRu(first.departDate)}${first.departTime?' · '+esc2(first.departTime):''}</div>` : ''}
-            ${last.arriveDate ? `<div class="line">🛬 Прибытие: ${fmtDateRu(last.arriveDate)}${last.arriveTime?' · '+esc2(last.arriveTime):''}</div>` : ''}
-            ${tk.carrier ? `<div class="line">Перевозчик: ${esc2(tk.carrier)}</div>` : ''}
-            ${segs.length > 1 ? `<div class="line">Сегментов: ${segs.length}</div>` : ''}
-            ${segs.map((sg, i) => `
-              <div class="line small">
-                ${i+1}. ${esc2(sg.from||'—')} → ${esc2(sg.to||'—')}
-                ${sg.departDate?' · '+fmtDateRu(sg.departDate):''}${sg.departTime?' '+esc2(sg.departTime):''}
-                ${sg.number?' · рейс '+esc2(sg.number):''}
-                ${sg.seat?' · место '+esc2(sg.seat):''}
-              </div>`).join('')}
-            ${tk.price ? `<div class="line">💰 ${fmtMoney(tk.price, 'RUB')}</div>` : ''}
-            ${tk.notes ? `<div class="line pre">${esc2(tk.notes)}</div>` : ''}
-          </div>
-        `;
-      }).join('')}
-    </section>`;
-  }
-
-  // Места по дням
-  if(include.activities && (trip.activities||[]).length && days.length){
-    body += `<section>
-      <h2>📍 Места по дням</h2>
-      ${days.map(d => {
-        const list = (trip.activities||[]).filter(a => a.date === d);
-        const undated = (trip.activities||[]).filter(a => !a.date);
-        if(!list.length && d !== days[0]) return '';
-        const label = new Date(d).toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'});
-        return `
-          <div class="day">
-            <div class="day-title-print">${label}</div>
-            ${list.length ? list.map(a => `
-              <div class="act-line">
-                <span class="act-time">${a.time?esc2(a.time):'—'}</span>
-                <span class="act-title">${placeTypeIcon(a.type)} ${esc2(a.title)}</span>
-                ${a.duration?`<span class="act-meta">${fmtDuration(a.duration)}</span>`:''}
-                ${a.notes?`<div class="act-note">${esc2(a.notes)}</div>`:''}
+    body += `
+      <section class="block">
+        <h2 class="block-title"><span class="block-title-bar"></span>Билеты</h2>
+        ${(trip.tickets||[]).map(tk => {
+          const segs = tk.segments || [];
+          const first = segs[0] || {};
+          const last = segs[segs.length-1] || {};
+          const route = [first.from, ...segs.map(s=>s.to)].filter(Boolean).join('  →  ');
+          const attach = tk.attachmentId ? `<div class="attach-note">📎 Прикреплён файл: ${esc2(tk.attachmentName||'файл')}${tk.attachmentSize?' · '+fmtBytes(tk.attachmentSize):''}</div>` : '';
+          return `
+            <div class="ticket-print">
+              <div class="ticket-print-head">
+                <span class="ticket-print-type">${ticketIcon(tk.type)} ${ticketLabel(tk.type)}</span>
+                ${tk.ticketNumber ? `<span class="ticket-print-num">${esc2(tk.ticketNumber)}</span>` : ''}
               </div>
-            `).join('') : `<div class="line small">— пусто —</div>`}
-          </div>
-        `;
-      }).join('')}
-      ${(trip.activities||[]).filter(a=>!a.date).length ? `
-        <div class="day">
-          <div class="day-title-print">Без даты</div>
-          ${(trip.activities||[]).filter(a=>!a.date).map(a => `
-            <div class="act-line">
-              <span class="act-title">${placeTypeIcon(a.type)} ${esc2(a.title)}</span>
-            </div>
-          `).join('')}
-        </div>` : ''}
-    </section>`;
+              <div class="ticket-print-route">${esc2(route || '—')}</div>
+              <div class="ticket-print-grid">
+                ${first.departDate ? `<div><span class="lbl">🛫 Отправление</span><span class="val">${fmtDateRu(first.departDate)}${first.departTime?' · '+esc2(first.departTime):''}</span></div>` : ''}
+                ${last.arriveDate ? `<div><span class="lbl">🛬 Прибытие</span><span class="val">${fmtDateRu(last.arriveDate)}${last.arriveTime?' · '+esc2(last.arriveTime):''}</span></div>` : ''}
+                ${tk.carrier ? `<div><span class="lbl">Перевозчик</span><span class="val">${esc2(tk.carrier)}</span></div>` : ''}
+                ${tk.price ? `<div><span class="lbl">💰 Стоимость</span><span class="val">${fmtMoney(tk.price, 'RUB')}</span></div>` : ''}
+              </div>
+              ${segs.length > 1 ? `
+                <div class="ticket-print-segs">
+                  ${segs.map((sg,i)=>`
+                    <div class="seg-line">
+                      <span class="seg-idx">${i+1}</span>
+                      <span class="seg-route">${esc2(sg.from||'—')} → ${esc2(sg.to||'—')}</span>
+                      ${sg.departDate?`<span class="seg-date">${fmtDateShort(sg.departDate)}${sg.departTime?' '+esc2(sg.departTime):''}</span>`:''}
+                      ${sg.number?`<span class="seg-num">рейс ${esc2(sg.number)}</span>`:''}
+                      ${sg.seat?`<span class="seg-seat">место ${esc2(sg.seat)}</span>`:''}
+                    </div>`).join('')}
+                </div>` : ''}
+              ${tk.notes ? `<div class="ticket-print-notes">${esc2(tk.notes).replace(/\n/g,'<br>')}</div>` : ''}
+              ${attach}
+            </div>`;
+        }).join('')}
+      </section>`;
   }
 
-  // Чек-листы
+  /* ---------- ЖИЛЬЁ ---------- */
+  if(include.lodging && (trip.lodging||[]).length){
+    body += `
+      <section class="block">
+        <h2 class="block-title"><span class="block-title-bar"></span>Жильё</h2>
+        ${(trip.lodging||[]).map(l => {
+          const dates = (l.checkInDate||l.checkOutDate) ?
+            `${l.checkInDate?fmtDateShort(l.checkInDate):''}${l.checkInTime?', '+esc2(l.checkInTime):''} → ${l.checkOutDate?fmtDateShort(l.checkOutDate):''}${l.checkOutTime?', '+esc2(l.checkOutTime):''}`
+            : '';
+          const attach = l.attachmentId ? `<div class="attach-note">📎 Прикреплён файл: ${esc2(l.attachmentName||'файл')}${l.attachmentSize?' · '+fmtBytes(l.attachmentSize):''}</div>` : '';
+          return `
+            <div class="lodging-print">
+              <div class="lodging-print-title">🏠 ${esc2(l.title||'Жильё')}</div>
+              ${dates ? `<div class="lodging-print-dates">📅 ${dates}</div>` : ''}
+              ${l.address ? `<div class="lodging-print-line">📍 ${esc2(l.address)}</div>` : ''}
+              ${l.price ? `<div class="lodging-print-line">💰 ${fmtMoney(l.price, 'RUB')}${l.priceNote?' · '+esc2(l.priceNote):''}</div>` : ''}
+              ${l.link ? `<div class="lodging-print-line">🔗 ${esc2(l.link)}</div>` : ''}
+              ${l.notes ? `<div class="lodging-print-notes">${esc2(l.notes).replace(/\n/g,'<br>')}</div>` : ''}
+              ${attach}
+            </div>`;
+        }).join('')}
+      </section>`;
+  }
+
+  /* ---------- МЕСТА ПО ДНЯМ ---------- */
+  if(include.activities && (trip.activities||[]).length && days.length){
+    const undated = (trip.activities||[]).filter(a=>!a.date);
+    body += `
+      <section class="block">
+        <h2 class="block-title"><span class="block-title-bar"></span>План по дням</h2>
+        ${days.map((d, idx) => {
+          const list = (trip.activities||[]).filter(a => a.date === d);
+          const lodges = (trip.lodging||[]).filter(l => {
+            const from = l.checkInDate || l.checkOutDate || '';
+            const to = l.checkOutDate || l.checkInDate || '';
+            return from && d >= from && d <= to;
+          });
+          return `
+            <div class="day-print">
+              <div class="day-print-head">
+                <span class="day-print-num">День ${idx+1}</span>
+                <span class="day-print-date">${fmtDayWeek(d)}</span>
+              </div>
+              ${lodges.length ? lodges.map(l=>`<div class="day-print-lodge">🏠 ${esc2(l.title||'Жильё')}${l.checkInDate===d?' · заезд':''}${l.checkOutDate===d?' · выезд':''}</div>`).join('') : ''}
+              ${list.length
+                ? `<div class="day-print-list">${list.map(a => `
+                    <div class="day-print-act">
+                      <span class="act-time">${a.time?esc2(a.time):'—'}</span>
+                      <span class="act-icon">${placeTypeIcon(a.type)}</span>
+                      <div class="act-body">
+                        <div class="act-title">${esc2(a.title)}</div>
+                        ${a.notes?`<div class="act-note">${esc2(a.notes)}</div>`:''}
+                      </div>
+                      ${a.duration?`<span class="act-dur">${fmtDuration(a.duration)}</span>`:''}
+                    </div>`).join('')}</div>`
+                : `<div class="day-print-empty">— пусто —</div>`}
+            </div>`;
+        }).join('')}
+        ${undated.length ? `
+          <div class="day-print">
+            <div class="day-print-head"><span class="day-print-num">Без даты</span></div>
+            <div class="day-print-list">${undated.map(a => `
+              <div class="day-print-act">
+                <span class="act-time">—</span>
+                <span class="act-icon">${placeTypeIcon(a.type)}</span>
+                <div class="act-body"><div class="act-title">${esc2(a.title)}</div></div>
+              </div>`).join('')}</div>
+          </div>` : ''}
+      </section>`;
+  }
+
+  /* ---------- ЧЕК-ЛИСТЫ ---------- */
   if(include.checklists && trip.checklists && ((trip.checklists.packing||[]).length || (trip.checklists.shopping||[]).length)){
-    body += `<section>
-      <h2>🧳 Чек-листы</h2>
-      ${(trip.checklists.packing||[]).length ? `
-        <div class="card">
-          <div class="card-title">Сборы</div>
-          ${(trip.checklists.packing||[]).map(item => `
-            <div class="check-line ${item.done?'done':''}">
-              <span class="check-box">${item.done?'☑':'☐'}</span>
-              <span>${esc2(item.text)}${item.note?' — '+esc2(item.note):''}</span>
-            </div>
-          `).join('')}
+    const pack = trip.checklists.packing || [];
+    const shop = trip.checklists.shopping || [];
+    body += `
+      <section class="block">
+        <h2 class="block-title"><span class="block-title-bar"></span>Чек-листы</h2>
+        <div class="checklists-print">
+          ${pack.length ? `
+            <div class="cl-print">
+              <div class="cl-print-title">🧳 Сборы <span class="cl-print-count">${pack.filter(x=>x.done).length}/${pack.length}</span></div>
+              ${pack.map(item => `
+                <div class="cl-line ${item.done?'done':''}">
+                  <span class="cl-box">${item.done?'☑':'☐'}</span>
+                  <span class="cl-text">${esc2(item.text)}${item.note?' — '+esc2(item.note):''}</span>
+                </div>`).join('')}
+            </div>` : ''}
+          ${shop.length ? `
+            <div class="cl-print">
+              <div class="cl-print-title">🛍️ Покупки <span class="cl-print-count">${shop.filter(x=>x.done).length}/${shop.length}</span></div>
+              ${shop.map(item => `
+                <div class="cl-line ${item.done?'done':''}">
+                  <span class="cl-box">${item.done?'☑':'☐'}</span>
+                  <span class="cl-text">${esc2(item.text)}${item.price?' · '+fmtMoney(item.price,'RUB'):''}${item.note?' — '+esc2(item.note):''}</span>
+                </div>`).join('')}
+            </div>` : ''}
         </div>
-      ` : ''}
-      ${(trip.checklists.shopping||[]).length ? `
-        <div class="card">
-          <div class="card-title">Желаемые покупки</div>
-          ${(trip.checklists.shopping||[]).map(item => `
-            <div class="check-line ${item.done?'done':''}">
-              <span class="check-box">${item.done?'☑':'☐'}</span>
-              <span>${esc2(item.text)}${item.price?' · '+fmtMoney(item.price, 'RUB'):''}${item.note?' — '+esc2(item.note):''}</span>
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
-    </section>`;
+      </section>`;
   }
 
-  // Бюджет
+  /* ---------- БЮДЖЕТ ---------- */
   if(include.budget){
     const b = calcBudget(trip);
-    body += `<section>
-      <h2>💰 Бюджет</h2>
-      <table class="kv">
-        <tr><td>Общий бюджет</td><td>${fmtMoney(b.total, 'RUB')}</td></tr>
-        <tr><td>Потрачено</td><td>${fmtMoney(b.factRUB, 'RUB')}</td></tr>
-        <tr><td>Осталось</td><td>${fmtMoney(b.left, 'RUB')}</td></tr>
-      </table>
-      ${b.byCat.length ? `
-        <h3 class="sub-h">По категориям</h3>
-        <table class="kv">
-          <thead><tr><th>Категория</th><th>План</th><th>Факт</th></tr></thead>
-          <tbody>
+    const percent = b.percent || 0;
+    body += `
+      <section class="block">
+        <h2 class="block-title"><span class="block-title-bar"></span>Бюджет</h2>
+        <div class="budget-print-hero">
+          <div class="budget-print-main">${fmtMoney(b.factRUB, 'RUB')} <span class="budget-print-of">из ${fmtMoney(b.total, 'RUB')}</span></div>
+          <div class="budget-print-sub">Осталось: ${fmtMoney(b.left, 'RUB')} · ${percent}% использовано</div>
+          <div class="budget-print-bar"><div style="width:${Math.min(100,percent)}%"></div></div>
+        </div>
+        ${b.byCat.length ? `
+          <div class="budget-print-cats">
             ${b.byCat.map(x => `
-              <tr>
-                <td>${esc2(x.cat.name)}</td>
-                <td>${fmtMoney(x.planned, 'RUB')}</td>
-                <td>${fmtMoney(x.fact, 'RUB')}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      ` : ''}
-      ${(trip.budget.expenses||[]).length ? `
-        <h3 class="sub-h">Траты</h3>
-        <table class="kv">
-          <thead><tr><th>Дата</th><th>Название</th><th>Сумма</th></tr></thead>
-          <tbody>
+              <div class="budget-print-row">
+                <span class="bp-dot" style="background:${BW?'#666':(x.cat.color||'#8e8e93')}"></span>
+                <span class="bp-name">${esc2(x.cat.name)}</span>
+                <span class="bp-amount">${fmtMoney(x.fact, 'RUB')} <span class="bp-plan">/ ${fmtMoney(x.planned, 'RUB')}</span></span>
+              </div>`).join('')}
+          </div>` : ''}
+        ${(trip.budget.expenses||[]).length ? `
+          <div class="budget-print-expenses">
+            <div class="bp-exp-title">Траты</div>
             ${(trip.budget.expenses||[]).slice().sort((a,b2)=> (a.date||'').localeCompare(b2.date||'')).map(e => {
               const cat = trip.budget.categories.find(c=>c.id===e.categoryId);
               const rub = e.priceInRUB ? (e.amount||0) : toRUB(e.amount||0, trip.currency, trip);
-              return `<tr>
-                <td>${e.date?fmtDateRu(e.date):'—'}</td>
-                <td>${esc2(e.title||'—')}${cat?' · '+esc2(cat.name):''}</td>
-                <td>${fmtMoney(rub, 'RUB')}</td>
-              </tr>`;
+              return `<div class="bp-exp-row">
+                <span class="bp-exp-date">${e.date?fmtDateShort(e.date):'—'}</span>
+                <span class="bp-exp-name">${esc2(e.title||'—')}${cat?' <span class="bp-exp-cat">· '+esc2(cat.name)+'</span>':''}</span>
+                <span class="bp-exp-sum">${fmtMoney(rub, 'RUB')}</span>
+              </div>`;
             }).join('')}
-          </tbody>
-        </table>
-      ` : ''}
-      ${b.savings.length ? `
-        <h3 class="sub-h">Накопления</h3>
-        <table class="kv">
-          <thead><tr><th>Цель</th><th>Накоплено</th><th>Цель, ₽</th></tr></thead>
-          <tbody>
-            ${b.savings.map(s => `<tr>
-              <td>${esc2(s.title)}</td>
-              <td>${fmtMoney(s.saved, 'RUB')}</td>
-              <td>${fmtMoney(s.target, 'RUB')}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      ` : ''}
-    </section>`;
+          </div>` : ''}
+      </section>`;
   }
 
-  // Финальный HTML
+  /* ---------- ФИНАЛЬНЫЙ HTML ---------- */
   return `<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
 <title>${esc2(trip.title)} — дорожная книга</title>
 <style>
+  @page { size: A4; margin: 14mm 12mm; }
   *{box-sizing:border-box}
   body{
-    margin:0;padding:24px 32px;
+    margin:0;padding:0;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    color:#000;background:#fff;
-    font-size:13px;line-height:1.45;
+    color:${C.text};background:#fff;
+    font-size:13px;line-height:1.5;
   }
-  .doc-head{
-    border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:20px;
+
+  /* ---------- ОБЛОЖКА ---------- */
+  .cover{
+    display:flex;flex-direction:column;justify-content:center;
+    min-height:250mm;
+    padding:40mm 24mm;
+    background:${C.bgCover};
+    color:${coverText};
+    text-align:center;
   }
-  .doc-head h1{margin:0 0 4px;font-size:24px;font-weight:800;letter-spacing:-.3px}
-  .doc-sub{color:#555;font-size:14px}
-  section{margin-bottom:24px;page-break-inside:avoid}
-  section h2{
-    font-size:16px;font-weight:800;margin:0 0 10px;padding-bottom:6px;
-    border-bottom:1px solid #ccc;letter-spacing:.2px;
+  .cover-brand{margin-bottom:24mm}
+  .cover-logo{
+    font-size:48px;font-weight:900;letter-spacing:-1px;
+    color:${coverAccent};
+    line-height:1.1;
   }
-  .sub-h{font-size:13px;font-weight:700;margin:12px 0 6px;color:#333}
-  .card{
-    border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin-bottom:8px;
-    page-break-inside:avoid;background:#fafafa;
+  .cover-tagline{
+    font-size:13px;letter-spacing:3px;text-transform:uppercase;
+    color:${coverText};opacity:.85;margin-top:6px;
   }
-  .card-title{font-weight:700;font-size:14px;margin-bottom:6px}
-  .line{font-size:12.5px;color:#333;margin:2px 0}
-  .line.small{font-size:11.5px;color:#666;padding-left:12px}
-  .line.pre{white-space:pre-wrap;margin-top:4px;color:#555;font-size:12px}
-  table.kv{
-    width:100%;border-collapse:collapse;font-size:12.5px;margin:4px 0 8px;
+  .cover-title{
+    font-size:32px;font-weight:800;line-height:1.2;
+    color:${coverText};margin-bottom:10mm;
   }
-  table.kv th, table.kv td{
-    text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;
+  .cover-meta{
+    font-size:15px;line-height:1.7;color:${coverText};opacity:.9;
   }
-  table.kv th{font-weight:700;background:#f2f2f2;font-size:12px}
-  table.kv td:last-child, table.kv th:last-child{text-align:right}
-  .day{
-    margin-bottom:14px;page-break-inside:avoid;
+  .cover-foot{
+    margin-top:auto;padding-top:24mm;
+    font-size:11px;letter-spacing:1px;text-transform:uppercase;
+    color:${coverText};opacity:.6;
   }
-  .day-title-print{
-    font-weight:800;font-size:13.5px;margin:10px 0 6px;
-    padding:4px 0;border-bottom:1px dashed #ccc;text-transform:capitalize;
+  .page-break{ page-break-after:always; }
+
+  /* ---------- БЛОКИ ---------- */
+  section.block{margin-bottom:22px;page-break-inside:auto}
+  .block-title{
+    display:flex;align-items:center;gap:10px;
+    font-size:16px;font-weight:800;letter-spacing:.2px;
+    color:${C.green};
+    margin:0 0 12px;
+    padding-bottom:8px;
+    border-bottom:1px solid ${C.border};
   }
-  .act-line{
-    display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:12.5px;
+  .block-title-bar{
+    display:inline-block;width:6px;height:20px;border-radius:2px;
+    background:${C.gold};
+  }
+
+  /* ---------- О ПОЕЗДКЕ ---------- */
+  .info-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:10px;
+    margin-bottom:10px;
+  }
+  .info-cell{
+    background:${C.bgCard};
+    border:1px solid ${C.border};
+    border-radius:8px;
+    padding:10px 12px;
+  }
+  .info-label{
+    font-size:10px;letter-spacing:1px;text-transform:uppercase;
+    color:${C.muted};font-weight:700;margin-bottom:4px;
+  }
+  .info-value{font-size:14px;color:${C.text};font-weight:600}
+  .info-notes{
+    background:${C.bgCard};border:1px solid ${C.border};
+    border-radius:8px;padding:10px 12px;
+  }
+  .info-notes-label{
+    font-size:10px;letter-spacing:1px;text-transform:uppercase;
+    color:${C.muted};font-weight:700;margin-bottom:4px;
+  }
+  .info-notes-body{font-size:13px;color:${C.text};white-space:pre-wrap}
+
+  /* ---------- БИЛЕТ ---------- */
+  .ticket-print{
+    background:${C.bgCard};border:1px solid ${C.border};
+    border-radius:10px;padding:0;margin-bottom:10px;
+    overflow:hidden;page-break-inside:avoid;
+  }
+  .ticket-print-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 14px;
+    background:${C.green};color:${BW?'#ffffff':coverText};
+    font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+  }
+  .ticket-print-num{
+    background:rgba(255,255,255,.2);padding:2px 8px;border-radius:999px;
+    font-size:11px;letter-spacing:.5px;
+  }
+  .ticket-print-route{
+    padding:14px;
+    font-size:18px;font-weight:800;color:${C.text};
+    border-bottom:1px dashed ${C.border};
+  }
+  .ticket-print-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;
+    padding:12px 14px;
+  }
+  .ticket-print-grid .lbl{
+    display:block;font-size:10px;color:${C.muted};
+    text-transform:uppercase;letter-spacing:.6px;font-weight:700;
+    margin-bottom:2px;
+  }
+  .ticket-print-grid .val{font-size:13px;color:${C.text};font-weight:600}
+  .ticket-print-segs{
+    padding:8px 14px 12px;border-top:1px dashed ${C.border};
+  }
+  .seg-line{
+    display:flex;gap:10px;align-items:baseline;padding:3px 0;
+    font-size:12px;color:${C.text};
+  }
+  .seg-idx{
+    display:inline-block;width:18px;height:18px;line-height:18px;
+    background:${C.gold};color:${BW?'#fff':'#0c3b2c'};border-radius:50%;
+    text-align:center;font-size:11px;font-weight:700;flex-shrink:0;
+  }
+  .seg-route{flex:1;font-weight:600}
+  .seg-date,.seg-num,.seg-seat{color:${C.muted};font-size:11px;white-space:nowrap}
+  .ticket-print-notes{
+    padding:10px 14px;border-top:1px dashed ${C.border};
+    font-size:12px;color:${C.muted};white-space:pre-wrap;
+  }
+  .attach-note{
+    padding:8px 14px;border-top:1px dashed ${C.border};
+    font-size:11.5px;color:${C.green};background:${C.bgSoft};
+  }
+
+  /* ---------- ЖИЛЬЁ ---------- */
+  .lodging-print{
+    background:${C.bgCard};border:1px solid ${C.border};
+    border-radius:10px;padding:12px 14px;margin-bottom:10px;
     page-break-inside:avoid;
   }
-  .act-time{font-weight:700;min-width:44px;color:#000}
-  .act-title{flex:1;font-weight:500}
-  .act-meta{color:#666;font-size:11.5px;white-space:nowrap}
-  .act-note{font-size:11.5px;color:#555;margin-left:52px;font-style:italic}
-  .check-line{display:flex;gap:8px;padding:2px 0;font-size:12.5px}
-  .check-line.done{color:#888;text-decoration:line-through}
-  .check-box{font-size:14px;line-height:1}
+  .lodging-print-title{
+    font-size:15px;font-weight:700;color:${C.text};margin-bottom:6px;
+  }
+  .lodging-print-dates,.lodging-print-line{
+    font-size:12.5px;color:${C.text};margin:3px 0;
+  }
+  .lodging-print-notes{
+    margin-top:6px;padding-top:6px;border-top:1px dashed ${C.border};
+    font-size:12px;color:${C.muted};white-space:pre-wrap;
+  }
+
+  /* ---------- ДНИ ---------- */
+  .day-print{
+    margin-bottom:14px;page-break-inside:avoid;
+    background:${C.bgCard};border:1px solid ${C.border};
+    border-radius:10px;padding:12px 14px;
+  }
+  .day-print-head{
+    display:flex;align-items:baseline;gap:10px;margin-bottom:8px;
+    padding-bottom:6px;border-bottom:1px dashed ${C.border};
+  }
+  .day-print-num{
+    font-size:11px;text-transform:uppercase;letter-spacing:1.5px;
+    font-weight:800;color:${C.gold};
+  }
+  .day-print-date{
+    font-size:13px;font-weight:600;color:${C.text};text-transform:capitalize;
+  }
+  .day-print-lodge{
+    font-size:12px;color:${C.green};margin:4px 0;padding:4px 8px;
+    background:${C.bgSoft};border-radius:6px;
+  }
+  .day-print-act{
+    display:flex;align-items:baseline;gap:10px;
+    padding:5px 0;font-size:12.5px;
+  }
+  .act-time{
+    font-weight:800;color:${C.text};min-width:44px;
+    font-variant-numeric:tabular-nums;
+  }
+  .act-icon{font-size:14px;flex-shrink:0}
+  .act-body{flex:1;min-width:0}
+  .act-title{font-weight:600;color:${C.text}}
+  .act-note{font-size:11.5px;color:${C.muted};margin-top:2px;font-style:italic}
+  .act-dur{font-size:11px;color:${C.muted};white-space:nowrap}
+  .day-print-empty{font-size:12px;color:${C.muted};font-style:italic}
+
+  /* ---------- ЧЕК-ЛИСТЫ ---------- */
+  .checklists-print{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .cl-print{
+    background:${C.bgCard};border:1px solid ${C.border};
+    border-radius:10px;padding:12px 14px;page-break-inside:avoid;
+  }
+  .cl-print-title{
+    font-size:13px;font-weight:800;color:${C.text};
+    margin-bottom:8px;padding-bottom:6px;
+    border-bottom:1px dashed ${C.border};
+    display:flex;justify-content:space-between;align-items:baseline;
+  }
+  .cl-print-count{font-size:11px;color:${C.muted};font-weight:600}
+  .cl-line{display:flex;gap:8px;padding:3px 0;font-size:12.5px;color:${C.text}}
+  .cl-line.done{color:${C.muted};text-decoration:line-through}
+  .cl-box{font-size:14px;line-height:1;flex-shrink:0}
+
+  /* ---------- БЮДЖЕТ ---------- */
+  .budget-print-hero{
+    background:${C.bgSoft};border:1px solid ${C.border};
+    border-radius:10px;padding:14px 16px;margin-bottom:12px;
+  }
+  .budget-print-main{font-size:22px;font-weight:800;color:${C.text}}
+  .budget-print-of{font-size:13px;color:${C.muted};font-weight:500}
+  .budget-print-sub{font-size:12.5px;color:${C.muted};margin-top:4px}
+  .budget-print-bar{
+    height:6px;background:rgba(0,0,0,.08);border-radius:999px;
+    margin-top:10px;overflow:hidden;
+  }
+  .budget-print-bar > div{
+    height:100%;background:${C.gold};border-radius:999px;
+  }
+  .budget-print-cats{
+    background:${C.bgCard};border:1px solid ${C.border};
+    border-radius:10px;padding:8px 0;margin-bottom:12px;
+  }
+  .budget-print-row{
+    display:flex;align-items:center;gap:10px;padding:6px 14px;
+    font-size:13px;
+  }
+  .bp-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .bp-name{flex:1;color:${C.text}}
+  .bp-amount{font-weight:700;color:${C.text};white-space:nowrap}
+  .bp-plan{font-weight:400;color:${C.muted};font-size:11.5px}
+  .budget-print-expenses{
+    background:${C.bgCard};border:1px solid ${C.border};
+    border-radius:10px;padding:10px 0;page-break-inside:avoid;
+  }
+  .bp-exp-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:1px;
+    font-weight:800;color:${C.muted};padding:0 14px 6px;
+  }
+  .bp-exp-row{
+    display:flex;gap:10px;align-items:baseline;padding:4px 14px;font-size:12.5px;
+  }
+  .bp-exp-date{color:${C.muted};min-width:52px;font-size:11.5px}
+  .bp-exp-name{flex:1;color:${C.text}}
+  .bp-exp-cat{color:${C.muted};font-size:11.5px}
+  .bp-exp-sum{font-weight:700;color:${C.text};white-space:nowrap}
+
+  /* ---------- ПЕЧАТЬ ---------- */
   @media print{
-    body{padding:12px 16px;font-size:11.5px}
-    .doc-head h1{font-size:20px}
-    section{margin-bottom:16px}
-    section h2{font-size:14px}
-    .card{padding:8px 10px;background:#fff}
-    .line.small{font-size:10.5px}
-    .day-title-print{font-size:12.5px}
-    .act-line{font-size:11.5px}
-    a{color:#000;text-decoration:none}
+    body{font-size:11.5px}
+    .cover{min-height:auto;height:100vh;padding:40mm 24mm}
+    .cover-logo{font-size:40px}
+    .cover-title{font-size:26px}
+    section.block{margin-bottom:16px}
+    .block-title{font-size:14px}
+    .ticket-print,.lodging-print,.day-print,.cl-print,.budget-print-hero,.budget-print-cats,.budget-print-expenses{
+      background:#fff;
+    }
+    a{color:${C.green};text-decoration:none}
   }
 </style>
 </head>
 <body>
+${cover}
 ${body}
-<script>
-  // Автопечать после загрузки — уже вызывается из родительского окна
-<\/script>
 </body>
 </html>`;
+}
 }
 
 /* =============== ЭКСПОРТ / ИМПОРТ =============== */
@@ -4951,14 +5702,18 @@ function normalizeImport(data){
         })) : []
       };
     }
-    trip.lodging = Array.isArray(t.lodging) ? t.lodging.map(l => ({
+        trip.lodging = Array.isArray(t.lodging) ? t.lodging.map(l => ({
       id: l.id || uid(), title: String(l.title || ''), address: String(l.address || ''),
       lat: (typeof l.lat === 'number') ? l.lat : null,
       lng: (typeof l.lng === 'number') ? l.lng : null,
       checkInDate: String(l.checkInDate || ''), checkInTime: String(l.checkInTime || ''),
       checkOutDate: String(l.checkOutDate || ''), checkOutTime: String(l.checkOutTime || ''),
       price: Number(l.price) || 0, priceNote: String(l.priceNote || ''),
-      link: String(l.link || ''), notes: String(l.notes || '')
+      link: String(l.link || ''), notes: String(l.notes || ''),
+      attachmentId:   l.attachmentId   || null,
+      attachmentName: l.attachmentName || null,
+      attachmentSize: l.attachmentSize || null,
+      attachmentType: l.attachmentType || null
     })) : [];
     trip.tickets = Array.isArray(t.tickets) ? t.tickets.map(tk => {
       if(Array.isArray(tk.segments)){
