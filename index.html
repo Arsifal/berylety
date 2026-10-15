@@ -2477,8 +2477,8 @@ function cloudDecomposeChecklists(trip, uid){
 }
 
 /* Отправляет одну поездку в облако целиком.
-   Сначала удаляет старые записи (по trip_id), потом вставляет новые.
-   Это проще, чем мержить по одной записи. */
+   Сначала удаляет старые записи (по trip_id), потом вставляет новые
+   в строгом порядке, чтобы не нарушать foreign keys. */
 async function cloudSaveTrip(trip){
   if(!sb || !currentUser) throw new Error('Не авторизован');
   const uid = currentUser.id;
@@ -2489,19 +2489,19 @@ async function cloudSaveTrip(trip){
   const bParts = cloudDecomposeBudget(trip, uid, now);
   const clItems = cloudDecomposeChecklists(trip, uid);
 
-  // Собираем все данные
-  const tripRow = parts.trip;
-  const activities = parts.activities;
-  const lodging = parts.lodging;
-  const tickets = tkParts.tickets;
-  const segments = tkParts.segments;
-  const expenses = bParts.expenses;
-  const categories = bParts.categories;
-  const savings = bParts.savings;
-  const savingsTx = bParts.savings_tx;
+  const tripRow       = parts.trip;
+  const activities    = parts.activities;
+  const lodging       = parts.lodging;
+  const tickets       = tkParts.tickets;
+  const segments      = tkParts.segments;
+  const expenses      = bParts.expenses;
+  const categories    = bParts.categories;
+  const savings       = bParts.savings;
+  const savingsTx     = bParts.savings_tx;
 
   // 1) Удаляем старые данные этой поездки
-  //    (кроме trips — его обновим через upsert)
+  //    (кроме trips — его обновим через upsert).
+  //    Сегменты и savings_transactions удаляются каскадом.
   await Promise.all([
     sb.from('activities').delete().eq('trip_id', trip.id).eq('user_id', uid),
     sb.from('lodging').delete().eq('trip_id', trip.id).eq('user_id', uid),
@@ -2511,26 +2511,41 @@ async function cloudSaveTrip(trip){
     sb.from('savings').delete().eq('trip_id', trip.id).eq('user_id', uid),
     sb.from('checklists').delete().eq('trip_id', trip.id).eq('user_id', uid)
   ]);
-  // Сегменты удаляются каскадом (on delete cascade от tickets)
 
-  // 2) Вставляем новое
-  const inserts = [];
-  inserts.push(sb.from('trips').upsert(tripRow));
-  if(activities.length)        inserts.push(sb.from('activities').insert(activities));
-  if(lodging.length)           inserts.push(sb.from('lodging').insert(lodging));
-  if(tickets.length)           inserts.push(sb.from('tickets').insert(tickets));
-  if(segments.length)          inserts.push(sb.from('ticket_segments').insert(segments));
-  if(expenses.length)          inserts.push(sb.from('expenses').insert(expenses));
-  if(categories.length)        inserts.push(sb.from('categories').insert(categories));
-  if(savings.length)           inserts.push(sb.from('savings').insert(savings));
-  if(savingsTx.length)         inserts.push(sb.from('savings_transactions').insert(savingsTx));
-  if(clItems.length)           inserts.push(sb.from('checklists').insert(clItems));
+  // Хелпер: проверяет результат и бросает ошибку при проблеме.
+  function ensure(res, label){
+    if(res && res.error){
+      throw new Error(`${label}: ${res.error.message || res.error}`);
+    }
+    return res;
+  }
 
-  const results = await Promise.all(inserts);
-  const failed = results.filter(r => r.error);
-  if(failed.length){
-    console.error('Ошибка облачного сохранения:', failed.map(f => f.error));
-    throw new Error(failed[0].error.message || 'Ошибка сохранения в облако');
+  // 2) Вставляем по порядку с учётом FK
+
+  // 2a) trips
+  ensure(await sb.from('trips').upsert(tripRow), 'trips upsert');
+
+  // 2b) activities, lodging, categories, checklists — не зависят друг от друга
+  if(activities.length) ensure(await sb.from('activities').insert(activities), 'activities insert');
+  if(lodging.length)    ensure(await sb.from('lodging').insert(lodging),       'lodging insert');
+  if(categories.length) ensure(await sb.from('categories').insert(categories), 'categories insert');
+  if(expenses.length)   ensure(await sb.from('expenses').insert(expenses),     'expenses insert');
+  if(clItems.length)    ensure(await sb.from('checklists').insert(clItems),    'checklists insert');
+
+  // 2c) tickets, ПОТОМ ticket_segments (FK ticket_id → tickets.id)
+  if(tickets.length){
+    ensure(await sb.from('tickets').insert(tickets), 'tickets insert');
+  }
+  if(segments.length){
+    ensure(await sb.from('ticket_segments').insert(segments), 'ticket_segments insert');
+  }
+
+  // 2d) savings, ПОТОМ savings_transactions (FK saving_id → savings.id)
+  if(savings.length){
+    ensure(await sb.from('savings').insert(savings), 'savings insert');
+  }
+  if(savingsTx.length){
+    ensure(await sb.from('savings_transactions').insert(savingsTx), 'savings_transactions insert');
   }
 }
 
