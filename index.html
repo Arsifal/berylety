@@ -16,7 +16,8 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   if (typeof L === 'undefined') {
     document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>');
@@ -103,27 +104,27 @@
   [data-theme="noir"] .day-title{letter-spacing:2px;color:var(--accent)}
   [data-theme="noir"] .fab{color:#000}
 
-    [data-theme="picky"]{
-    color-scheme: dark;
-    --bg:#2a0f1f;
-    --bg-soft:#241019;
-    --bg-elev:#3a1629;
-    --text:#f7e8ef;
-    --muted:#b898a8;
-    --accent:#e6b980;
-    --accent-2:#d4a06a;
-    --accent-soft:#4a2535;
-    --border:#4d1e38;
+            [data-theme="picky"]{
+    color-scheme: light;
+    --bg:#f7f0f2;
+    --bg-soft:#f0e4e8;
+    --bg-elev:#ffffff;
+    --text:#3f2a33;
+    --muted:#8a7580;
+    --accent:#b8839a;
+    --accent-2:#9e6b81;
+    --accent-soft:#efe1e7;
+    --border:#e8d6dd;
     --radius:20px;
     --radius-sm:14px;
     --radius-lg:26px;
-    --danger:#e5484d;
-    --overlay:rgba(20,5,15,.75);
-    --shadow:0 4px 20px rgba(0,0,0,.35);
-    --shadow-lg:0 12px 32px rgba(0,0,0,.5);
-    --shadow-fab:0 8px 24px rgba(230,185,128,.30);
-    --warn:#e6b980;
-    --ok:#8ed4a3;
+    --danger:#c25b60;
+    --overlay:rgba(63,42,51,.4);
+    --shadow:0 4px 20px rgba(184,131,154,.08);
+    --shadow-lg:0 12px 32px rgba(184,131,154,.14);
+    --shadow-fab:0 8px 24px rgba(184,131,154,.30);
+    --warn:#c8925a;
+    --ok:#5fa878;
     --font-head:"Georgia,'Times New Roman',serif";
   }
 
@@ -1121,98 +1122,116 @@ html{
      PICKY (ROSE NOIR) — гламурные точечные правила
      ========================================================= */
 
+    /* =========================================================
+     PICKY (ROSE CREAM) — гламурные точечные правила
+     ========================================================= */
+
   /* Заголовок — Georgia для «люксовости» */
   [data-theme="picky"] header h1{
     font-family: var(--font-head);
     letter-spacing: .3px;
     font-weight: 700;
+    color: var(--text);
   }
 
   /* Кнопки — градиент из розового в золото, тёмный текст */
   [data-theme="picky"] .btn{
     background: linear-gradient(135deg, #c76b8f, #e6b980);
-    color: #2a0f1f;
-    font-weight: 800;
+    color: #ffffff;
+    font-weight: 700;
     letter-spacing: .3px;
     box-shadow: 0 8px 24px rgba(199,107,143,.35);
+    text-shadow: 0 1px 2px rgba(74,31,51,.15);
   }
   [data-theme="picky"] .btn:active{
-    background: linear-gradient(135deg, #b25a7d, #d4a06a);
+    background: linear-gradient(135deg, #a84f74, #d4a06a);
   }
 
-  /* FAB — золотой с розовым ореолом */
+  /* FAB — розово-золотой градиент */
   [data-theme="picky"] .fab{
     background: linear-gradient(135deg, #c76b8f, #e6b980);
-    color: #2a0f1f;
-    font-weight: 900;
-    box-shadow: 0 8px 24px rgba(199,107,143,.5);
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(199,107,143,.45);
   }
   [data-theme="picky"] .fab:hover{
-    box-shadow: 0 12px 32px rgba(230,185,128,.55);
+    box-shadow: 0 12px 32px rgba(199,107,143,.55);
   }
 
-  /* Заголовки дней — с золотой точкой и Georgia */
+  /* Заголовки дней — Georgia курсивом, розовые */
   [data-theme="picky"] .day-title{
     font-family: var(--font-head);
     font-style: italic;
     letter-spacing: .4px;
     color: var(--accent);
+    background: var(--bg);
   }
 
-  /* Активная вкладка — золотая подчёркивающая линия */
+  /* Активная вкладка — розовая подчёркивающая линия */
   [data-theme="picky"] .trip-tab.active{
     color: var(--accent);
     border-bottom-color: var(--accent);
   }
 
-  /* Заголовки групп — с золотой точкой слева */
+  /* Заголовки групп — розовые с разрядкой */
   [data-theme="picky"] .group-head .title{
     color: var(--accent);
     letter-spacing: 1.5px;
   }
 
-  /* Бюджетный hero — тот же градиент, что и кнопки */
+  /* Бюджетный hero — нежный градиент, тёмный текст */
   [data-theme="picky"] .budget-hero{
-    background: linear-gradient(135deg, #6b2a44, #4a1a2f);
+    background: linear-gradient(135deg, #f5c6d8, #f0dcb8);
     color: var(--text);
-    box-shadow: 0 12px 32px rgba(107,42,68,.5);
-    border: 1px solid rgba(230,185,128,.25);
+    box-shadow: 0 12px 32px rgba(199,107,143,.2);
+    border: 1px solid rgba(199,107,143,.2);
+  }
+  [data-theme="picky"] .budget-hero .label,
+  [data-theme="picky"] .budget-hero .sub,
+  [data-theme="picky"] .budget-hero .main{
+    color: var(--text);
+    opacity: 1;
   }
   [data-theme="picky"] .budget-bar{
-    background: rgba(255,255,255,.15);
+    background: rgba(74,31,51,.12);
   }
   [data-theme="picky"] .budget-bar > div{
     background: linear-gradient(90deg, #c76b8f, #e6b980);
   }
 
-  /* Чипы — активный золотой, неактивный тёплый */
+  /* Чипы — активный розовый, белый текст */
   [data-theme="picky"] .chip.active{
     background: var(--accent);
-    color: #2a0f1f;
+    color: #ffffff;
     font-weight: 700;
   }
   [data-theme="picky"] .chip:hover:not(.active){
     background: var(--border);
   }
 
-  /* Бейджи «Сейчас» / «Через N дн» — золотые */
+  /* Бейджи */
   [data-theme="picky"] .card .badge{
     background: var(--accent);
-    color: #2a0f1f;
+    color: #ffffff;
   }
   [data-theme="picky"] .card .badge.active{
     background: var(--ok);
-    color: #2a0f1f;
+    color: #ffffff;
   }
 
-  /* Контакты-hero — тот же градиент, что у кнопок */
+  /* Контакты-hero — нежный градиент */
   [data-theme="picky"] .contacts-hero{
-    background: linear-gradient(135deg, #6b2a44, #4a1a2f);
+    background: linear-gradient(135deg, #f5c6d8, #f0dcb8);
     color: var(--text);
-    border: 1px solid rgba(230,185,128,.25);
+    border: 1px solid rgba(199,107,143,.2);
   }
   [data-theme="picky"] .contacts-hero .contacts-brand{
-    color: var(--accent);
+    color: #a84f74;
+  }
+  [data-theme="picky"] .contacts-hero .contacts-tagline,
+  [data-theme="picky"] .contacts-hero .contacts-version{
+    color: var(--text);
+    opacity: .75;
   }
 
   /* Заголовок модалки — Georgia */
@@ -1222,28 +1241,32 @@ html{
     letter-spacing: .2px;
   }
 
-  /* Тонкая золотая полоска под шапкой */
+  /* Тонкая розовая полоска под шапкой */
   [data-theme="picky"] header{
-    border-bottom: 1px solid rgba(230,185,128,.25);
+    border-bottom: 1px solid var(--border);
   }
 
-  /* Биллет-хедер: тот же глубокий градиент */
+  /* Ticket-head: нежный градиент, тёмный текст */
   [data-theme="picky"] .ticket-head{
-    background: linear-gradient(135deg, #6b2a44, #4a1a2f);
+    background: linear-gradient(135deg, #f5c6d8, #f0dcb8);
     color: var(--text);
-    border-bottom: 1px solid rgba(230,185,128,.25);
+    border-bottom: 1px solid rgba(199,107,143,.25);
+  }
+  [data-theme="picky"] .ticket-head .num{
+    background: rgba(74,31,51,.12);
+    color: var(--text);
   }
 
   /* Скроллбары в розово-золотых тонах */
   [data-theme="picky"] *::-webkit-scrollbar-thumb{
-    background: #4d1e38;
-    border-color: #2a0f1f;
+    background: var(--border);
+    border-color: var(--bg);
   }
   [data-theme="picky"] *::-webkit-scrollbar-thumb:hover{
-    background: #c76b8f;
+    background: var(--accent);
   }
 
-  /* Фокус — заметная золотая обводка */
+  /* Фокус — заметная розовая обводка */
   [data-theme="picky"] button:focus-visible,
   [data-theme="picky"] a:focus-visible,
   [data-theme="picky"] input:focus-visible,
@@ -1253,18 +1276,18 @@ html{
     outline-offset: 2px;
   }
 
-  /* Липкий заголовок дня — фон должен совпадать с --bg */
-  [data-theme="picky"] .day-title{
-    background: var(--bg);
-  }
-
-  /* Banned-карточка в контактах — золото вместо жёлтого */
+  /* Banned-карточка в контактах — акцент на розовый */
   [data-theme="picky"] .banned-card{
     border-left-color: var(--accent);
   }
   [data-theme="picky"] .banned-tag{
     background: var(--accent);
-    color: #2a0f1f;
+    color: #ffffff;
+  }
+
+  /* Бейджи места-билета, «из билета» — мягче */
+  [data-theme="picky"] .meta{
+    color: var(--muted);
   }
 
     /* =========================================================
@@ -1451,6 +1474,370 @@ html{
   .place-item[data-ticket-locked="1"]{
     background: linear-gradient(90deg, var(--accent-soft), transparent 40%);
   }
+
+    /* =========================================================
+     ПОИСК АДРЕСА — Google-кнопка и метки источника
+     ========================================================= */
+
+  /* Кнопка Google рядом с поиском */
+  .coords-row .gmaps-btn{
+    background: var(--bg-soft);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 15px;
+    padding: 0 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background .15s;
+    flex: 0 0 auto;
+  }
+  .coords-row .gmaps-btn:hover{
+    background: var(--border);
+  }
+  .coords-row .gmaps-btn:active{
+    background: var(--accent-soft);
+  }
+
+  /* Метка источника в подсказках */
+  .suggestion .src{
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    color: var(--muted);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 999px;
+    text-transform: uppercase;
+  }
+  .suggestion{ position: relative; }
+  /* Отступ справа, чтобы метка не наезжала на текст */
+  .suggestion .name{ padding-right: 46px; }
+
+    /* =========================================================
+     ВСТАВКА КООРДИНАТ — кнопка 📋, инструкция, тост
+     ========================================================= */
+
+  .coords-row .paste-btn{
+    background: var(--bg-soft);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 15px;
+    padding: 0 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background .15s;
+    flex: 0 0 auto;
+  }
+  .coords-row .paste-btn:hover{
+    background: var(--border);
+  }
+  .coords-row .paste-btn:active{
+    background: var(--accent-soft);
+  }
+
+  /* Свёрнутая инструкция */
+  .coords-help{
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    background: var(--bg-soft);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+  }
+  .coords-help[open]{
+    border-style: solid;
+  }
+  .coords-help summary{
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text);
+    list-style: none;
+    outline: none;
+  }
+  .coords-help summary::-webkit-details-marker{ display: none; }
+  .coords-help summary::before{
+    content: '';
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid var(--muted);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    margin-right: 6px;
+    transition: transform .15s;
+    vertical-align: middle;
+  }
+  .coords-help[open] summary::before{
+    transform: rotate(90deg);
+  }
+  .coords-help ol{
+    margin: 8px 0 2px;
+    padding-left: 22px;
+    line-height: 1.55;
+  }
+  .coords-help ol li{
+    margin-bottom: 4px;
+  }
+  .coords-help b{ color: var(--text); }
+
+  /* Тост — всплывающая плашка внизу экрана */
+  .app-toast{
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    transform: translate(-50%, 20px);
+    max-width: min(520px, calc(100vw - 32px));
+    background: var(--text);
+    color: var(--bg);
+    padding: 12px 18px;
+    border-radius: 14px;
+    font-size: 13.5px;
+    line-height: 1.45;
+    box-shadow: 0 12px 32px rgba(0,0,0,.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease, transform .22s ease;
+    z-index: 1000;
+    text-align: center;
+  }
+  .app-toast.show{
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  /* Специально для picky: тост в пудрово-сливовых тонах */
+  [data-theme="picky"] .app-toast{
+    background: #3f2a33;
+    color: #f7f0f2;
+  }
+
+    /* =========================================================
+     АВАТАР ПОЛЬЗОВАТЕЛЯ В ШАПКЕ
+     ========================================================= */
+  .user-btn{
+    padding: 2px !important;
+    border-radius: 50%;
+    line-height: 0;
+  }
+  .user-avatar{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border);
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    overflow: hidden;
+  }
+  .user-avatar-initial{
+    background: var(--accent);
+    color: #fff;
+  }
+
+    /* =========================================================
+     АВТОРИЗАЦИЯ
+     ========================================================= */
+  .auth-tabs{
+    display: flex;
+    gap: 4px;
+    background: var(--bg-soft);
+    padding: 4px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+  }
+  .auth-tab{
+    flex: 1;
+    text-align: center;
+    padding: 8px 12px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 999px;
+    transition: background .15s, color .15s;
+    user-select: none;
+    border: none;
+    background: none;
+    font-family: inherit;
+  }
+  .auth-tab.active{
+    background: var(--bg-elev);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+
+  .auth-form{
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .auth-field label{
+    font-size: 13px;
+    color: var(--text);
+    opacity: .75;
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .auth-field input{
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-family: inherit;
+    background: var(--bg-elev);
+    color: var(--text);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .auth-field input:focus{
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .auth-error{
+    background: rgba(200,50,50,.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .auth-info{
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .auth-divider{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 4px 0;
+  }
+  .auth-divider::before,
+  .auth-divider::after{
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .btn-google{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: var(--bg-elev);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, transform .1s;
+    box-shadow: var(--shadow);
+  }
+  .btn-google:active{ transform: scale(.97); }
+  .btn-google:hover{ background: var(--bg-soft); }
+  .btn-google svg{
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .auth-link{
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 0;
+    text-align: center;
+    font-family: inherit;
+    text-decoration: none;
+  }
+  .auth-link:hover{ text-decoration: underline; }
+
+  .auth-foot{
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+
+  /* Профиль */
+  .profile-hero{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px;
+    text-align: center;
+  }
+  .profile-avatar{
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--border);
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 700;
+    overflow: hidden;
+  }
+  .profile-name{
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 4px;
+  }
+  .profile-email{
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .profile-provider{
+    font-size: 11.5px;
+    color: var(--muted);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 10px;
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -1463,6 +1850,414 @@ html{
 <input type="file" id="import-file" accept="application/json,.json" style="display:none" />
 
 <script>
+/* =============== SUPABASE =============== */
+const SUPABASE_URL = 'https://kmnknppsrzvhczbqfvix.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImttbmtucHBzenJ2aGN6YnFmdmx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNTgwNzEsImV4cCI6MjEwNzYzNDA3MX0.LuLmME8egs25aJkHAnhhSD0LmIrr2AFYpBSviqchxm4';
+
+let sb = null;           // Supabase client
+let currentUser = null;  // { id, email, ... } или null
+
+/* Переводит стандартные сообщения ошибок Supabase на русский. */
+function getAuthErrorMessage(err){
+  if(!err) return 'Неизвестная ошибка';
+  const msg = (err.message || String(err)).toLowerCase();
+  if(msg.includes('invalid login credentials'))       return 'Неверный email или пароль.';
+  if(msg.includes('email not confirmed'))             return 'Email не подтверждён. Проверьте почту.';
+  if(msg.includes('user already registered'))         return 'Этот email уже зарегистрирован. Войдите или сбросьте пароль.';
+  if(msg.includes('password should be at least'))     return 'Пароль слишком короткий (минимум 6 символов).';
+  if(msg.includes('unable to validate email address'))return 'Некорректный email.';
+  if(msg.includes('rate limit'))                      return 'Слишком много попыток. Подождите пару минут.';
+  if(msg.includes('email rate limit exceeded'))       return 'Слишком много писем. Подождите и попробуйте позже.';
+  if(msg.includes('network'))                         return 'Нет связи с сервером. Проверьте интернет.';
+  if(msg.includes('popup closed by user'))            return 'Окно входа закрыто.';
+  if(msg.includes('signup is disabled'))              return 'Регистрация временно отключена.';
+  if(msg.includes('email link is invalid or has expired')) return 'Ссылка недействительна или устарела. Запросите новую.';
+  return err.message || 'Ошибка авторизации. Попробуйте ещё раз.';
+}
+
+/* Открывает модалку входа/регистрации.
+   mode: 'signin' | 'signup' | 'forgot'
+   При ошибке — показываем её в модалке. */
+function openAuthModal(mode = 'signin'){
+  if(currentUser){
+    openProfileMenu();
+    return;
+  }
+
+  const tabsHtml = `
+    <div class="auth-tabs">
+      <button class="auth-tab ${mode==='signin'?'active':''}" onclick="openAuthModal('signin')">Вход</button>
+      <button class="auth-tab ${mode==='signup'?'active':''}" onclick="openAuthModal('signup')">Регистрация</button>
+    </div>
+  `;
+
+  let bodyHtml = '';
+  if(mode === 'signin'){
+    bodyHtml = `
+      ${tabsHtml}
+      <div class="auth-form">
+        <div class="auth-field">
+          <label>Email</label>
+          <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div class="auth-field">
+          <label>Пароль</label>
+          <input id="auth-password" type="password" autocomplete="current-password" placeholder="••••••" />
+        </div>
+        <div id="auth-error" style="display:none"></div>
+        <button class="btn" id="auth-submit" onclick="doSignIn()">Войти</button>
+        <div class="auth-divider">или</div>
+        <button class="btn-google" onclick="doGoogleSignIn()">
+          ${googleIconSvg()}
+          <span>Войти через Google</span>
+        </button>
+        <div class="auth-foot">
+          <button class="auth-link" onclick="openAuthModal('forgot')">Забыли пароль?</button>
+          <button class="auth-link" onclick="openAuthModal('signup')">Нет аккаунта? Зарегистрироваться</button>
+        </div>
+      </div>
+    `;
+  }
+  else if(mode === 'signup'){
+    bodyHtml = `
+      ${tabsHtml}
+      <div class="auth-form">
+        <div class="auth-field">
+          <label>Имя (необязательно)</label>
+          <input id="auth-name" type="text" autocomplete="name" placeholder="Как вас зовут" />
+        </div>
+        <div class="auth-field">
+          <label>Email</label>
+          <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div class="auth-field">
+          <label>Пароль (минимум 6 символов)</label>
+          <input id="auth-password" type="password" autocomplete="new-password" placeholder="••••••" />
+        </div>
+        <div class="auth-field">
+          <label>Повторите пароль</label>
+          <input id="auth-password2" type="password" autocomplete="new-password" placeholder="••••••" />
+        </div>
+        <div id="auth-error" style="display:none"></div>
+        <button class="btn" id="auth-submit" onclick="doSignUp()">Зарегистрироваться</button>
+        <div class="auth-divider">или</div>
+        <button class="btn-google" onclick="doGoogleSignIn()">
+          ${googleIconSvg()}
+          <span>Зарегистрироваться через Google</span>
+        </button>
+        <div class="auth-foot">
+          <button class="auth-link" onclick="openAuthModal('signin')">Уже есть аккаунт? Войти</button>
+        </div>
+      </div>
+    `;
+  }
+  else if(mode === 'forgot'){
+    bodyHtml = `
+      <div class="auth-form">
+        <p class="muted" style="margin:0;font-size:13.5px;line-height:1.5">
+          Введите email, на который зарегистрирован аккаунт. Мы отправим ссылку для сброса пароля.
+        </p>
+        <div class="auth-field">
+          <label>Email</label>
+          <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div id="auth-error" style="display:none"></div>
+        <button class="btn" id="auth-submit" onclick="doForgotPassword()">Отправить ссылку</button>
+        <div class="auth-foot">
+          <button class="auth-link" onclick="openAuthModal('signin')">Назад ко входу</button>
+        </div>
+      </div>
+    `;
+  }
+
+  const titles = {
+    signin: 'Войти в аккаунт',
+    signup: 'Создать аккаунт',
+    forgot: 'Сброс пароля'
+  };
+
+  openModal(`
+    <div class="modal-head">
+      <h3>${titles[mode]}</h3>
+      <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
+    </div>
+    <div class="modal-body">${bodyHtml}</div>
+  `);
+
+  // Фокус на первое поле
+  setTimeout(() => {
+    const el = document.getElementById(mode === 'signup' ? 'auth-name' : 'auth-email');
+    if(el) el.focus();
+  }, 100);
+
+  // Enter на любом поле — submit
+  setTimeout(() => {
+    const modalEl = document.getElementById('modal');
+    if(!modalEl) return;
+    modalEl.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter'){
+        e.preventDefault();
+        if(mode === 'signin') doSignIn();
+        else if(mode === 'signup') doSignUp();
+        else if(mode === 'forgot') doForgotPassword();
+      }
+    });
+  }, 100);
+}
+
+function googleIconSvg(){
+  return `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+    <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+    <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0124 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+    <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 01-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+  </svg>`;
+}
+
+/* Показ/скрытие ошибки в модалке авторизации. */
+function authShowError(text){
+  const box = document.getElementById('auth-error');
+  if(!box) return;
+  box.className = 'auth-error';
+  box.textContent = text;
+  box.style.display = 'block';
+}
+function authShowInfo(text){
+  const box = document.getElementById('auth-error');
+  if(!box) return;
+  box.className = 'auth-info';
+  box.textContent = text;
+  box.style.display = 'block';
+}
+function authHideMsg(){
+  const box = document.getElementById('auth-error');
+  if(box) box.style.display = 'none';
+}
+function authSetLoading(loading){
+  const btn = document.getElementById('auth-submit');
+  if(!btn) return;
+  btn.disabled = loading;
+  btn.style.opacity = loading ? '0.6' : '';
+  btn.style.cursor = loading ? 'wait' : '';
+}
+
+/* ---------- ВХОД ПО EMAIL ---------- */
+async function doSignIn(){
+  authHideMsg();
+  const email = (document.getElementById('auth-email')?.value || '').trim();
+  const password = document.getElementById('auth-password')?.value || '';
+  if(!email) return authShowError('Введите email.');
+  if(!password) return authShowError('Введите пароль.');
+
+  authSetLoading(true);
+  try{
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error) throw error;
+    currentUser = data.user;
+    closeModal();
+    showToast('✓ Вы вошли в аккаунт');
+    render();
+  }catch(err){
+    authShowError(getAuthErrorMessage(err));
+  }finally{
+    authSetLoading(false);
+  }
+}
+
+/* ---------- РЕГИСТРАЦИЯ ПО EMAIL ---------- */
+async function doSignUp(){
+  authHideMsg();
+  const name = (document.getElementById('auth-name')?.value || '').trim();
+  const email = (document.getElementById('auth-email')?.value || '').trim();
+  const password = document.getElementById('auth-password')?.value || '';
+  const password2 = document.getElementById('auth-password2')?.value || '';
+
+  if(!email) return authShowError('Введите email.');
+  if(!/^\S+@\S+\.\S+$/.test(email)) return authShowError('Некорректный email.');
+  if(!password || password.length < 6) return authShowError('Пароль должен быть не короче 6 символов.');
+  if(password !== password2) return authShowError('Пароли не совпадают.');
+
+  authSetLoading(true);
+  try{
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: name || '' },
+        emailRedirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if(error) throw error;
+
+    // Если Supabase требует подтверждения email — сессии не будет
+    if(!data.session){
+      closeModal();
+      showToast('✓ Регистрация успешна. Проверьте почту — мы отправили ссылку для подтверждения.', 7000);
+      return;
+    }
+
+    // Если подтверждение email отключено — сразу вошли
+    currentUser = data.user;
+    closeModal();
+    showToast('✓ Добро пожаловать!');
+    render();
+  }catch(err){
+    authShowError(getAuthErrorMessage(err));
+  }finally{
+    authSetLoading(false);
+  }
+}
+
+/* ---------- ВОССТАНОВЛЕНИЕ ПАРОЛЯ ---------- */
+async function doForgotPassword(){
+  authHideMsg();
+  const email = (document.getElementById('auth-email')?.value || '').trim();
+  if(!email) return authShowError('Введите email.');
+
+  authSetLoading(true);
+  try{
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+    if(error) throw error;
+    authShowInfo('Если такой email есть в системе — мы отправили на него ссылку для сброса пароля.');
+  }catch(err){
+    authShowError(getAuthErrorMessage(err));
+  }finally{
+    authSetLoading(false);
+  }
+}
+
+/* ---------- ВХОД ЧЕРЕЗ GOOGLE ---------- */
+async function doGoogleSignIn(){
+  authHideMsg();
+  try{
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent'
+        }
+      }
+    });
+    if(error) throw error;
+    // Дальше браузер сам перейдёт на Google и вернётся на redirectTo.
+    // Сессия установится автоматически через detectSessionInUrl.
+  }catch(err){
+    authShowError(getAuthErrorMessage(err));
+  }
+}
+
+/* Меню профиля пользователя. */
+function openProfileMenu(){
+  if(!currentUser){
+    openAuthModal();
+    return;
+  }
+  const meta = currentUser.user_metadata || {};
+  const name = meta.full_name || meta.name || '';
+  const email = currentUser.email || '';
+  const provider = (currentUser.app_metadata?.provider) || 'email';
+  const providerLabel = {
+    google: 'Google',
+    email: 'Email',
+    phone: 'Телефон'
+  }[provider] || provider;
+
+  const avatar = avatarHtml(currentUser);
+
+  openModal(`
+    <div class="modal-head">
+      <h3>Профиль</h3>
+      <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
+    </div>
+    <div class="modal-body">
+      <div class="profile-hero">
+        <div class="profile-avatar">${avatar.replace('class="user-avatar', 'class="user-avatar profile-avatar')}</div>
+        ${name ? `<div class="profile-name">${esc(name)}</div>` : ''}
+        <div class="profile-email">${esc(email)}</div>
+        <div class="profile-provider">через ${esc(providerLabel)}</div>
+      </div>
+      <div class="menu-list">
+        <button class="menu-item" onclick="doSignOut()">
+          <span class="emoji">🚪</span>
+          <span class="label">Выйти из аккаунта</span>
+        </button>
+      </div>
+      <p class="muted" style="margin:8px 2px 0;font-size:12.5px;line-height:1.5;text-align:center">
+        Синхронизация с облаком появится в следующих обновлениях.
+      </p>
+    </div>
+  `);
+}
+
+/* Выход из аккаунта. */
+async function doSignOut(){
+  if(!sb) return;
+  try{
+    await sb.auth.signOut();
+    currentUser = null;
+    closeModal();
+    showToast('Вы вышли из аккаунта');
+    render();
+  }catch(err){
+    console.error('Ошибка выхода:', err);
+    showToast('Не удалось выйти. Попробуйте ещё раз.');
+  }
+}
+
+function initSupabase(){
+  if(typeof window.supabase === 'undefined'){
+    console.error('Supabase SDK не загружен');
+    return false;
+  }
+  try{
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage,
+        storageKey: 'berileti-auth'
+      }
+    });
+    return true;
+  }catch(e){
+    console.error('Ошибка инициализации Supabase:', e);
+    return false;
+  }
+}
+
+/* Загрузить текущего пользователя, если сессия есть.
+   Вызывается при старте приложения. */
+async function loadCurrentUser(){
+  if(!sb) return null;
+  try{
+    const { data, error } = await sb.auth.getUser();
+    if(error || !data || !data.user){
+      currentUser = null;
+      return null;
+    }
+    currentUser = data.user;
+    return currentUser;
+  }catch(e){
+    console.error('Ошибка getUser:', e);
+    currentUser = null;
+    return null;
+  }
+}
+
+/* Подписка на изменения авторизации: вход, выход, обновление токена. */
+function subscribeAuthChanges(onChange){
+  if(!sb) return;
+  sb.auth.onAuthStateChange((event, session) => {
+    currentUser = session ? session.user : null;
+    if(typeof onChange === 'function') onChange(event, session);
+  });
+}
+
 /* =============== ТЕМЫ =============== */
 const THEMES = [
   { id:'light', icon:'☀️', label:'Светлая' },
@@ -1778,13 +2573,64 @@ function daysBetween(a,b){
   while(d<=end){ out.push(new Date(d).toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
   return out;
 }
+/* Парсер координат. Поддерживает:
+   - "41.69, 44.80" / "41.69 44.80" / "41.69;44.80"
+   - "41.69°N, 44.80°E" / "41.69 N 44.80 E"
+   - DMS: 41°41'24.0"N 44°48'00.0"E
+   - ссылки Google: .../@41.69,44.80,17z/...
+   - ссылки Яндекс: ...?pt=44.80,41.69&z=17
+   - geo:41.69,44.80
+   - любой текст с координатами внутри */
 function parseCoords(s){
-  if(!s) return {lat:null,lng:null};
-  const m = s.match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
-  if(!m) return {lat:null,lng:null};
-  const lat=parseFloat(m[1]), lng=parseFloat(m[2]);
-  if(isNaN(lat)||isNaN(lng)) return {lat:null,lng:null};
-  return {lat,lng};
+  if(!s || typeof s !== 'string') return {lat:null, lng:null};
+  const text = s.trim();
+
+  // 1) Ссылка Яндекс.Карт: pt=<lng>,<lat>
+  //    (у Яндекса порядок: долгота, широта)
+  let m = text.match(/[?&]pt=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if(m){
+    const lng = parseFloat(m[1]), lat = parseFloat(m[2]);
+    if(!isNaN(lat) && !isNaN(lng)) return {lat, lng};
+  }
+
+  // 2) Ссылка Google Maps: /@<lat>,<lng>,<zoom>
+  m = text.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,|z|\/|$)/);
+  if(m){
+    const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if(!isNaN(lat) && !isNaN(lng)) return {lat, lng};
+  }
+
+  // 3) geo: URI
+  m = text.match(/^geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i);
+  if(m){
+    const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if(!isNaN(lat) && !isNaN(lng)) return {lat, lng};
+  }
+
+  // 4) DMS: 41°41'24.0"N 44°48'00.0"E
+  //    или упрощённо 41°41'24"N 44°48'E
+  const dmsRe = /(\d{1,3})\s*[°º]\s*(\d{1,2})?\s*['′]?\s*(\d{1,2}(?:\.\d+)?)?\s*["″]?\s*([NnSs])\s*[, ]?\s*(\d{1,3})\s*[°º]\s*(\d{1,2})?\s*['′]?\s*(\d{1,2}(?:\.\d+)?)?\s*["″]?\s*([EeWw])/;
+  m = text.match(dmsRe);
+  if(m){
+    const latDeg = parseFloat(m[1]) + (parseFloat(m[2])||0)/60 + (parseFloat(m[3])||0)/3600;
+    const lngDeg = parseFloat(m[5]) + (parseFloat(m[6])||0)/60 + (parseFloat(m[7])||0)/3600;
+    const lat = /[Ss]/.test(m[4]) ? -latDeg : latDeg;
+    const lng = /[Ww]/.test(m[8]) ? -lngDeg : lngDeg;
+    if(!isNaN(lat) && !isNaN(lng)) return {lat, lng};
+  }
+
+  // 5) Обычные десятичные координаты с опциональными N/S/E/W:
+  //    "41.69, 44.80" / "41.69°N 44.80°E" / "N 41.69 E 44.80"
+  m = text.match(/(-?\d+(?:\.\d+)?)\s*[°º]?\s*([NnSs])?\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*[°º]?\s*([EeWw])?/);
+  if(m){
+    let lat = parseFloat(m[1]);
+    let lng = parseFloat(m[3]);
+    if(m[2] && /[Ss]/.test(m[2])) lat = -Math.abs(lat);
+    if(m[4] && /[Ww]/.test(m[4])) lng = -Math.abs(lng);
+    if(!isNaN(lat) && !isNaN(lng)) return {lat, lng};
+  }
+
+  return {lat:null, lng:null};
 }
 function daysUntil(dateStr){
   if(!dateStr) return Infinity;
@@ -1850,6 +2696,7 @@ function ensureTrip(t){
       if(a.linkedTicketId === undefined) a.linkedTicketId = null;
       if(a.linkedTicketRole === undefined) a.linkedTicketRole = null;
       if(a.lockedByTicket === undefined) a.lockedByTicket = false;
+      if(a.linkedTicketSegmentIdx === undefined) a.linkedTicketSegmentIdx = null;
     });
   }
   if(t.budget && Array.isArray(t.budget.expenses)){
@@ -2046,6 +2893,17 @@ function render(){
   else if(state.view==='trip') renderTrip();
 }
 
+/* Аватар пользователя: картинка или инициал. */
+function avatarHtml(user){
+  const meta = user.user_metadata || {};
+  const url = meta.avatar_url || meta.picture;
+  if(url){
+    return `<img src="${esc(url)}" alt="" class="user-avatar" />`;
+  }
+  const name = meta.full_name || meta.name || user.email || '?';
+  const initial = name.trim().charAt(0).toUpperCase();
+  return `<span class="user-avatar user-avatar-initial">${esc(initial)}</span>`;
+}
 /* ---------- Список ---------- */
 function renderList(){
   const list = getVisibleTrips();
@@ -2053,9 +2911,14 @@ function renderList(){
   const isEmpty = trips.length === 0;
   const noResults = !isEmpty && list.length === 0;
 
-  app.innerHTML = `
+    app.innerHTML = `
     <header>
       <h1>✈️ Мои поездки</h1>
+      ${currentUser
+        ? `<button class="icon-btn user-btn" onclick="openProfileMenu()" title="${esc(currentUser.email||'Профиль')}">
+             ${avatarHtml(currentUser)}
+           </button>`
+        : `<button class="icon-btn" onclick="openAuthModal()" title="Войти">👤</button>`}
       <button class="icon-btn" onclick="openMenu()" title="Меню">⋯</button>
       <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
     </header>
@@ -2551,12 +3414,14 @@ function actCard(a){
       <a href="https://yandex.ru/maps/?pt=${a.lng},${a.lat}&z=15&l=map" target="_blank" onclick="event.stopPropagation()">🟡 Яндекс</a>
       <a href="https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lng}" target="_blank" onclick="event.stopPropagation()">🔵 Google</a>
     </div>` : '';
-    const ticketBadge = a.linkedTicketId
-    ? `<div class="meta" style="color:var(--accent);font-weight:600">🔒 из билета · правится в «Билетах»</div>`
+      const ticketBadge = a.linkedTicketId
+    ? `<div class="meta" style="color:var(--accent);font-weight:600;font-size:12px;margin-top:2px">🔒 из билета · правится в «Билетах»</div>`
     : '';
   return `
     <div class="act-wrap">
-      <button class="act-delete" onclick="delActivity('${a.id}')">Удалить</button>
+      ${a.linkedTicketId
+        ? '' // не показываем «Удалить» для мест-билетов: их убирают через билет
+        : `<button class="act-delete" onclick="delActivity('${a.id}')">Удалить</button>`}
       <div class="act" data-id="${a.id}" onclick="openActivityModal('${a.id}')">
         <div class="pin">${typeIcon}</div>
         <div class="body">
@@ -2674,8 +3539,8 @@ function placeCard(a, assigned){
   const timeBadge = assigned && a.time
     ? `<span class="time-badge">${a.time}</span>`
     : (assigned ? `<span class="time-badge">—</span>` : `<span class="time-badge">в пуле</span>`);
-    const ticketBadge = a.linkedTicketId
-    ? `<div class="meta" style="color:var(--accent);font-weight:600;margin-top:3px">🔒 из билета</div>`
+      const ticketBadge = a.linkedTicketId
+    ? `<div class="meta" style="color:var(--accent);font-weight:600;margin-top:3px;font-size:12px">🔒 из билета</div>`
     : '';
   return `<div class="place-item ${assigned?'':'unassigned'}" onclick="openActivityModal('${a.id}')">
     <div class="pin">${typeIcon}</div>
@@ -2763,16 +3628,25 @@ function runAutoDistribute(){
   const days = daysBetween(trip.start, trip.end);
   if(!days.length){ alert('Нет дней.'); return; }
 
+    // Места-билеты не трогаем: у них своя логика привязки к билету,
+  // и их нельзя ни сбрасывать, ни перераспределять.
+  const isTicketActivity = a => !!a.linkedTicketId;
+
   let pool;
   if(mode === 'reset'){
-    trip.activities.forEach(a => { a.date = ''; a.time = ''; });
-    pool = trip.activities.slice();
+    // Сбрасываем только обычные места, не трогая места-билеты
+    trip.activities.forEach(a => {
+      if(isTicketActivity(a)) return;
+      a.date = '';
+      a.time = '';
+    });
+    pool = trip.activities.filter(a => !isTicketActivity(a));
   } else {
-    pool = trip.activities.filter(a => !a.date);
+    pool = trip.activities.filter(a => !isTicketActivity(a) && !a.date);
   }
-  if(!pool.length){ alert('Нет мест.'); return; }
+  if(!pool.length){ alert('Нет мест для распределения.'); return; }
 
-  const booked = {};
+    const booked = {};
   days.forEach(d => { booked[d] = []; });
   trip.activities.forEach(a => {
     if(a.date && days.includes(a.date)) booked[a.date].push(a);
@@ -2974,7 +3848,14 @@ function ticketWindowsForDay(trip, day){
     failed.push({ item, reason });
   });
 
-  trip._autoFailed = failed.map(f => ({ id: f.item.id, reason: f.reason }));
+    trip._autoFailed = failed.map(f => ({ id: f.item.id, reason: f.reason }));
+
+  // Синхронизируем все места-билеты по их билетам:
+  // это вернёт им корректные даты, время и порядок
+  (trip.tickets || []).forEach(tk => {
+    if(tk.toPlan) syncTicketActivities(trip, tk.id);
+  });
+
   DB.save(trips);
   closeModal();
   render();
@@ -3059,16 +3940,16 @@ function saveTicketGeoCache(trip){
 }
 
 /* Синхронизирует «места-билеты» в плане с состоянием билета.
-   - Если ticket.toPlan === true: создаёт/обновляет место «Вылет»
-     и место «Прилёт» с привязкой linkedTicketId.
-   - Если false: удаляет все места с этим linkedTicketId.
-   Удаление/обновление идёт строго по linkedTicketId — не путается
-   с обычными местами, созданными вручную. */
+   Каждый сегмент даёт ДВА места: вылет и прилёт.
+   Это корректно работает и для перелётов с пересадками
+   (несколько сегментов в одном билете), и для билетов,
+   где сразу и «туда», и «обратно».
+   Удаление/обновление — строго по linkedTicketId. */
 function syncTicketActivities(trip, ticketId){
   const ticket = trip.tickets.find(t => t.id === ticketId);
   if(!ticket){ return; }
 
-  // Убираем все места, привязанные к этому билету
+  // Сначала убираем все места, привязанные к этому билету
   trip.activities = (trip.activities || []).filter(a => a.linkedTicketId !== ticketId);
 
   if(!ticket.toPlan) return;
@@ -3076,61 +3957,63 @@ function syncTicketActivities(trip, ticketId){
   const segs = ticket.segments || [];
   if(!segs.length) return;
 
-  const first = segs[0];
-  const last  = segs[segs.length-1];
-  const from  = first.from || '—';
-  const to    = last.to   || '—';
-  const route = `${from} → ${to}`;
+  segs.forEach((sg, segIdx) => {
+    const from = sg.from || '—';
+    const to   = sg.to   || '—';
+    const route = `${from} → ${to}`;
+    const segNote = ticket.carrier ? `Перевозчик: ${ticket.carrier}` : '';
+    const segNumber = sg.number ? `Рейс: ${sg.number}` : '';
+    const notes = [segNote, segNumber].filter(Boolean).join(' · ');
 
-  // Место «Вылет»
-  if(first.departDate){
-    const departTitle = `✈️ ${route} · вылет`;
-    trip.activities.push({
-      id: uid(),
-      title: departTitle,
-      date: first.departDate,
-      time: first.departTime || '',
-      notes: ticket.carrier ? `Перевозчик: ${ticket.carrier}` : '',
-      lat: (typeof first.fromLat === 'number') ? first.fromLat : null,
-      lng: (typeof first.fromLng === 'number') ? first.fromLng : null,
-      type: 'other',
-      duration: 180, // 3 ч: 2 ч регистрация + 1 ч запас
-      openFrom: '',
-      openTo: '',
-      price: 0,
-      addToExpense: false,
-      checklist: [],
-      linkedTicketId: ticketId,
-      linkedTicketRole: 'depart',
-      lockedByTicket: true
-    });
-  }
+    // Место «Вылет» — по этому сегменту
+    if(sg.departDate){
+      trip.activities.push({
+        id: uid(),
+        title: `✈️ ${route} · вылет`,
+        date: sg.departDate,
+        time: sg.departTime || '',
+        notes: notes,
+        lat: (typeof sg.fromLat === 'number') ? sg.fromLat : null,
+        lng: (typeof sg.fromLng === 'number') ? sg.fromLng : null,
+        type: 'other',
+        duration: 180, // 3 ч: 2 ч регистрация + 1 ч запас
+        openFrom: '',
+        openTo: '',
+        price: 0,
+        addToExpense: false,
+        checklist: [],
+        linkedTicketId: ticketId,
+        linkedTicketRole: 'depart',
+        linkedTicketSegmentIdx: segIdx,
+        lockedByTicket: true
+      });
+    }
 
-  // Место «Прилёт»
-  if(last.arriveDate){
-    const arriveTitle = `✈️ ${route} · прилёт`;
-    trip.activities.push({
-      id: uid(),
-      title: arriveTitle,
-      date: last.arriveDate,
-      time: last.arriveTime || '',
-      notes: ticket.carrier ? `Перевозчик: ${ticket.carrier}` : '',
-      lat: (typeof last.toLat === 'number') ? last.toLat : null,
-      lng: (typeof last.toLng === 'number') ? last.toLng : null,
-      type: 'other',
-      duration: 60, // час на выезд из аэропорта/вокзала
-      openFrom: '',
-      openTo: '',
-      price: 0,
-      addToExpense: false,
-      checklist: [],
-      linkedTicketId: ticketId,
-      linkedTicketRole: 'arrive',
-      lockedByTicket: true
-    });
-  }
+    // Место «Прилёт» — по этому сегменту
+    if(sg.arriveDate){
+      trip.activities.push({
+        id: uid(),
+        title: `✈️ ${route} · прилёт`,
+        date: sg.arriveDate,
+        time: sg.arriveTime || '',
+        notes: notes,
+        lat: (typeof sg.toLat === 'number') ? sg.toLat : null,
+        lng: (typeof sg.toLng === 'number') ? sg.toLng : null,
+        type: 'other',
+        duration: 60, // час на выезд из аэропорта/вокзала
+        openFrom: '',
+        openTo: '',
+        price: 0,
+        addToExpense: false,
+        checklist: [],
+        linkedTicketId: ticketId,
+        linkedTicketRole: 'arrive',
+        linkedTicketSegmentIdx: segIdx,
+        lockedByTicket: true
+      });
+    }
+  });
 }
-
 /* Собираем все уникальные точки из билетов */
 function collectTicketPoints(trip){
   const set = new Set();
@@ -3630,13 +4513,29 @@ function openLodgingModal(id){
       <div><label>Название</label><input id="l-title" placeholder="Отель / квартира" value="${l?esc(l.title||''):''}" /></div>
       <div class="coords-wrap">
         <label>Адрес или поиск места</label>
-        <div class="coords-row">
+                <div class="coords-row">
           <input id="l-address" placeholder="ул. Руставели 12, Тбилиси" value="${l?esc(l.address||''):''}" autocomplete="off" />
-          <button type="button" onclick="searchLodgingAddress()">🔍</button>
+          <button type="button" onclick="searchLodgingAddress()" title="Найти">🔍</button>
+          <button type="button" class="gmaps-btn" onclick="openGoogleMapsFromInput('l-address')" title="Открыть в Google Maps">🌍</button>
         </div>
         <div class="suggestions" id="l-suggestions"></div>
       </div>
-      <div><label>Координаты</label><input id="l-coords" placeholder="41.69, 44.80" value="${l&&l.lat!=null?`${l.lat}, ${l.lng}`:''}" /></div>
+                  <div>
+        <label>Координаты</label>
+        <div class="coords-row">
+          <input id="l-coords" placeholder="41.69, 44.80" value="${l&&l.lat!=null?`${l.lat}, ${l.lng}`:''}" />
+          <button type="button" class="gmaps-btn" onclick="openGoogleMapsFromInput('l-coords')" title="Открыть в Google Maps">🌍</button>
+          <button type="button" class="paste-btn" onclick="pasteCoordsFromClipboard('l-coords')" title="Вставить координаты из буфера">📋</button>
+        </div>
+        <details class="coords-help">
+          <summary>❔ Как вставить координаты из Google Maps</summary>
+          <ol>
+            <li>Нажмите 🌍, чтобы открыть Google Maps.</li>
+            <li>Найдите нужное место. <b>Зажмите точку</b> на карте — появятся координаты. Нажмите «Скопировать».</li>
+            <li>Вернитесь сюда и нажмите <b>📋</b> — координаты подставятся автоматически.</li>
+          </ol>
+        </details>
+      </div>
       <div class="row">
         <div><label>Заезд — дата</label><input id="l-in-date" type="date" value="${l&&l.checkInDate?l.checkInDate:(trip.start||'')}" /></div>
         <div><label>Время</label><input id="l-in-time" type="time" value="${l&&l.checkInTime?l.checkInTime:''}" /></div>
@@ -3868,27 +4767,13 @@ function searchLodgingAddress(){
     box.innerHTML = '<div class="loading">Ищу...</div>';
     lodgeAbort = new AbortController();
     try{
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ru&q=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { signal: lodgeAbort.signal, headers: { 'Accept':'application/json' } });
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      const data = await res.json();
-      if(!data.length){ box.innerHTML = '<div class="loading">Ничего не найдено</div>'; return; }
-            box.innerHTML = data.map((d, idx) => {
-        const name = (d.display_name||'').split(',')[0];
-        const addr = (d.display_name||'').split(',').slice(1).join(',').trim();
-        return `<div class="suggestion" data-idx="${idx}">
-          <span class="name">${esc(name)}</span>
-          <span class="addr">${esc(addr)}</span>
-        </div>`;
-      }).join('');
-
-      box.querySelectorAll('.suggestion').forEach((el, idx) => {
-        el.addEventListener('click', ()=>{
-          const d = data[idx];
-          const lat = parseFloat(d.lat);
-          const lng = parseFloat(d.lon);
-          pickLodgingSuggestion(lat, lng, d.display_name || '');
-        });
+      const results = await geocodeSearch(q, lodgeAbort.signal);
+      renderSuggestions(box, results, (r) => {
+        const addr = document.getElementById('l-address');
+        const coords = document.getElementById('l-coords');
+        if(addr) addr.value = r.addr ? `${r.name}, ${r.addr}` : r.name;
+        if(coords) coords.value = `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`;
+        box.innerHTML = '';
       });
     }catch(e){
       if(e.name === 'AbortError') return;
@@ -4327,8 +5212,18 @@ function openTicketPointSearch(segmentIndex, field){
       <label>Название города или аэропорта</label>
 <div class="coords-row">
   <input id="tp-query" placeholder="Например: Шереметьево, Москва" value="${esc(curValue)}" autocomplete="off" />
-  <button type="button" onclick="runTicketPointSearch(${segmentIndex}, '${field}')">🔍</button>
+  <button type="button" onclick="runTicketPointSearch(${segmentIndex}, '${field}')" title="Найти">🔍</button>
+  <button type="button" class="gmaps-btn" onclick="openGoogleMapsFromInput('tp-query')" title="Открыть в Google Maps">🌍</button>
+  <button type="button" class="paste-btn" onclick="pasteCoordsForTicket(${segmentIndex}, '${field}')" title="Вставить координаты из буфера">📋</button>
 </div>
+<details class="coords-help">
+  <summary>❔ Как вставить координаты из Google Maps</summary>
+  <ol>
+    <li>Нажмите 🌍, чтобы открыть Google Maps.</li>
+    <li>Найдите нужное место. <b>Зажмите точку</b> на карте — появятся координаты. Нажмите «Скопировать».</li>
+    <li>Вернитесь сюда и нажмите <b>📋</b> — координаты подставятся автоматически.</li>
+  </ol>
+</details>
 <div class="suggestions" id="tp-suggestions"></div>
       ${curLat != null ? `
         <p class="muted" style="margin:0;font-size:12px">
@@ -4368,28 +5263,9 @@ function runTicketPointSearch(segmentIndex, field){
     box.innerHTML = '<div class="loading">Ищу...</div>';
     ticketPointAbort = new AbortController();
     try{
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ru&q=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { signal: ticketPointAbort.signal, headers: { 'Accept': 'application/json' } });
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if(!data.length){ box.innerHTML = '<div class="loading">Ничего не найдено</div>'; return; }
-            box.innerHTML = data.map((d, idx) => {
-        const name = (d.display_name||'').split(',')[0];
-        const addr = (d.display_name||'').split(',').slice(1).join(',').trim();
-        return `<div class="suggestion" data-idx="${idx}">
-          <span class="name">${esc(name)}</span>
-          <span class="addr">${esc(addr)}</span>
-        </div>`;
-      }).join('');
-
-      // Навешиваем обработчики через addEventListener — так надёжнее
-      box.querySelectorAll('.suggestion').forEach((el, idx) => {
-        el.addEventListener('click', ()=>{
-          const d = data[idx];
-          const lat = parseFloat(d.lat);
-          const lng = parseFloat(d.lon);
-          pickTicketPoint(segmentIndex, field, lat, lng, d.display_name || '');
-        });
+      const results = await geocodeSearch(q, ticketPointAbort.signal);
+      renderSuggestions(box, results, (r) => {
+        pickTicketPoint(segmentIndex, field, r.lat, r.lng, r.name);
       });
     }catch(e){
       if(e.name === 'AbortError') return;
@@ -5068,12 +5944,22 @@ function openActivityModal(id){
         <div><label>Время</label><input id="m-time" type="time" value="${a&&a.time?esc(a.time):''}" /></div>
       </div>
       <div><label>Заметка</label><textarea id="m-notes" rows="2" placeholder="Детали...">${a?esc(a.notes||''):''}</textarea></div>
-      <div class="coords-wrap">
+                  <div class="coords-wrap">
         <label>Координаты или поиск места</label>
         <div class="coords-row">
           <input id="m-coords" placeholder="Название или 41.69, 44.80" value="${a&&a.lat!=null?`${a.lat}, ${a.lng}`:''}" autocomplete="off" />
-          <button type="button" onclick="searchAddress()">🔍</button>
+          <button type="button" onclick="searchAddress()" title="Найти">🔍</button>
+          <button type="button" class="gmaps-btn" onclick="openGoogleMapsFromInput('m-coords')" title="Открыть в Google Maps">🌍</button>
+          <button type="button" class="paste-btn" onclick="pasteCoordsFromClipboard('m-coords')" title="Вставить координаты из буфера">📋</button>
         </div>
+        <details class="coords-help">
+          <summary>❔ Как вставить координаты из Google Maps</summary>
+          <ol>
+            <li>Нажмите 🌍, чтобы открыть Google Maps.</li>
+            <li>Найдите нужное место. <b>Зажмите точку</b> на карте — появятся координаты. Нажмите «Скопировать».</li>
+            <li>Вернитесь сюда и нажмите <b>📋</b> — координаты подставятся автоматически.</li>
+          </ol>
+        </details>
         <div class="suggestions" id="m-suggestions"></div>
       </div>
       <div class="row">
@@ -5127,6 +6013,17 @@ function outsideCoordsClick(e){
 }
 function saveActivity(){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+
+  // Место-билет сохранять нельзя — оно управляется билетом
+  if(state.editingId){
+    const existing = trip.activities.find(x => x.id === state.editingId);
+    if(existing && existing.linkedTicketId){
+      alert('Это место создано билетом. Откройте билет и измените его — место обновится автоматически.');
+      closeModal();
+      return;
+    }
+  }
+
   const title = document.getElementById('m-title').value.trim();
   if(!title){ alert('Введите название'); return; }
   const date = document.getElementById('m-date').value;
@@ -6544,8 +7441,9 @@ function normalizeImport(data){
         openTo: String(a.openTo || ''),
         price: Number(a.price) || 0,
         addToExpense: !!a.addToExpense,
-        linkedTicketId: a.linkedTicketId || null,
+                linkedTicketId: a.linkedTicketId || null,
         linkedTicketRole: a.linkedTicketRole || null,
+        linkedTicketSegmentIdx: (typeof a.linkedTicketSegmentIdx === 'number') ? a.linkedTicketSegmentIdx : null,
         lockedByTicket: !!a.lockedByTicket,
         checklist: Array.isArray(a.checklist) ? a.checklist.map(c=>({ id: c.id || uid(), text: String(c.text || ''), done: !!c.done })) : []
       })) : []
@@ -6744,6 +7642,319 @@ function doImport(mode, incoming){
   setTimeout(() => alert(msg), 50);
 }
 
+/* =========================================================
+   УЛУЧШЕННЫЙ ГЕОКОДИНГ — Nominatim + Photon + кэш
+   ========================================================= */
+
+/* Кэш поисковых запросов в localStorage.
+   Ключ: 'geoc_' + нормализованный запрос.
+   TTL: 7 дней. */
+const GEO_CACHE_PREFIX = 'geoc_';
+const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function geoCacheKey(q){
+  return GEO_CACHE_PREFIX + q.trim().toLowerCase();
+}
+function geoCacheGet(q){
+  try{
+    const raw = localStorage.getItem(geoCacheKey(q));
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    if(!obj || !obj.ts || Date.now() - obj.ts > GEO_CACHE_TTL) return null;
+    return obj.results || null;
+  }catch(e){ return null; }
+}
+function geoCacheSet(q, results){
+  try{
+    localStorage.setItem(geoCacheKey(q), JSON.stringify({ ts: Date.now(), results }));
+  }catch(e){}
+}
+/* Раз в сутки чистим старые записи кэша */
+function geoCacheCleanup(){
+  try{
+    const now = Date.now();
+    const keysToRemove = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(!k || !k.startsWith(GEO_CACHE_PREFIX)) continue;
+      try{
+        const obj = JSON.parse(localStorage.getItem(k) || 'null');
+        if(!obj || !obj.ts || now - obj.ts > GEO_CACHE_TTL) keysToRemove.push(k);
+      }catch(e){ keysToRemove.push(k); }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  }catch(e){}
+}
+geoCacheCleanup();
+
+/* Запрос к Nominatim. Возвращает массив {name, addr, lat, lng, source}. */
+async function geocodeNominatim(q, signal){
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ru&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url, { signal, headers: { 'Accept': 'application/json' } });
+  if(!res.ok) throw new Error('Nominatim HTTP ' + res.status);
+  const data = await res.json();
+  return data.map(d => {
+    const parts = (d.display_name || '').split(',');
+    const name = (parts[0] || '').trim() || q;
+    const addr = parts.slice(1).join(',').trim();
+    return {
+      name, addr,
+      lat: parseFloat(d.lat),
+      lng: parseFloat(d.lon),
+      source: 'OSM'
+    };
+  });
+}
+
+/* Запрос к Photon. Возвращает массив в том же формате. */
+async function geocodePhoton(q, signal){
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=ru`;
+  const res = await fetch(url, { signal });
+  if(!res.ok) throw new Error('Photon HTTP ' + res.status);
+  const data = await res.json();
+  const features = (data && data.features) || [];
+  return features.map(f => {
+    const p = f.properties || {};
+    const coords = (f.geometry && f.geometry.coordinates) || [];
+    const name = p.name || p.street || p.city || q;
+    const addrParts = [
+      p.street && p.housenumber ? `${p.street}, ${p.housenumber}` : (p.street || null),
+      p.district,
+      p.city,
+      p.state,
+      p.country
+    ].filter(Boolean);
+    return {
+      name: String(name),
+      addr: addrParts.join(', '),
+      lat: parseFloat(coords[1]),
+      lng: parseFloat(coords[0]),
+      source: 'Photon'
+    };
+  }).filter(r => !isNaN(r.lat) && !isNaN(r.lng));
+}
+
+/* Дедупликация: если два результата ближе 100 м — оставляем первый. */
+function dedupeGeo(results){
+  const out = [];
+  const R = 6371000; // метров
+  const toRad = x => x * Math.PI / 180;
+  function dist(a, b){
+    const dLat = toRad(b.lat - a.lat);
+    const dLon = toRad(b.lng - a.lng);
+    const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(x));
+  }
+  results.forEach(r => {
+    if(out.some(o => dist(o, r) < 100)) return;
+    out.push(r);
+  });
+  return out;
+}
+
+/* Основной поиск: кэш → Nominatim → Photon (если мало) → дедуп. */
+async function geocodeSearch(q, signal){
+  const cached = geoCacheGet(q);
+  if(cached) return cached;
+
+  let results = [];
+  try{
+    results = await geocodeNominatim(q, signal);
+  }catch(e){
+    if(e.name === 'AbortError') throw e;
+    // тихо игнорируем — попробуем Photon
+  }
+
+  // Если Nominatim вернул мало, добавим Photon
+  if(results.length < 3){
+    try{
+      const photon = await geocodePhoton(q, signal);
+      results = results.concat(photon);
+    }catch(e){
+      if(e.name === 'AbortError') throw e;
+      // тихо игнорируем
+    }
+  }
+
+  results = dedupeGeo(results).slice(0, 7);
+  if(results.length) geoCacheSet(q, results);
+  return results;
+}
+
+/* Открывает Google Maps в новой вкладке.
+   Если есть координаты — по ним, иначе — поиск по тексту. */
+function openGoogleMaps(lat, lng, text){
+  let url;
+  if(lat != null && lng != null && !isNaN(lat) && !isNaN(lng)){
+    url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  } else if(text && text.trim()){
+    url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text.trim())}`;
+  } else {
+    url = 'https://www.google.com/maps';
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
+/* Читает значение input по id. Если это координаты вида "41.69, 44.80" —
+   открывает по ним, иначе — поиск по тексту. */
+function openGoogleMapsFromInput(inputId){
+  const el = document.getElementById(inputId);
+  if(!el) return;
+  const val = (el.value || '').trim();
+  const {lat, lng} = parseCoords(val);
+  if(lat != null && lng != null){
+    openGoogleMaps(lat, lng);
+  } else {
+    openGoogleMaps(null, null, val);
+  }
+}
+
+/* Специально для модалки точки билета: если в буфере координаты —
+   сразу сохраняем их в сегмент, а поле оставляем пустым или с названием. */
+async function pasteCoordsForTicket(segmentIndex, field){
+  if(!navigator.clipboard || !navigator.clipboard.readText){
+    alert('Ваш браузер не разрешает автоматическое чтение буфера обмена.\nСкопируйте координаты и вставьте их в поле вручную.');
+    return;
+  }
+  let text = '';
+  try{
+    text = await navigator.clipboard.readText();
+  }catch(err){
+    alert('Не удалось прочитать буфер обмена.\nРазрешите доступ к буферу обмена в настройках браузера.');
+    return;
+  }
+  if(!text || !text.trim()){
+    showToast('Буфер обмена пуст');
+    return;
+  }
+
+  const {lat, lng} = parseCoords(text);
+  if(lat == null || lng == null){
+    showToast('Не удалось распознать координаты. Скопируйте их в Google Maps: зажмите точку на карте и нажмите «Скопировать».');
+    return;
+  }
+
+  // Сначала синхронизируем все поля сегментов из DOM в state
+  const box = document.getElementById('tk-segments');
+  if(box){
+    box.querySelectorAll('input[data-k]').forEach(el => {
+      const i = parseInt(el.dataset.i, 10);
+      const k = el.dataset.k;
+      if(state.ticketSegments[i]) state.ticketSegments[i][k] = el.value;
+    });
+  }
+
+  const sg = state.ticketSegments[segmentIndex];
+  if(!sg) return;
+
+  // Записываем координаты в нужное поле сегмента
+  sg[field + 'Lat'] = lat;
+  sg[field + 'Lng'] = lng;
+  // Если пользователь оставил название пустым — заполним понятным текстом
+  if(!sg[field] || !sg[field].trim()){
+    sg[field] = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+
+  // Сохраняем прямо в билет, если редактируем существующий
+  const trip = ensureTrip(trips.find(t => t.id === state.tripId));
+  const ticketId = state._editingTicketId;
+  if(ticketId){
+    const ticket = trip.tickets.find(t => t.id === ticketId);
+    if(ticket && ticket.segments && ticket.segments[segmentIndex]){
+      ticket.segments[segmentIndex][field] = sg[field];
+      ticket.segments[segmentIndex][field + 'Lat'] = lat;
+      ticket.segments[segmentIndex][field + 'Lng'] = lng;
+      DB.save(trips);
+    }
+  }
+
+  renderTicketSegments();
+  showToast('✓ Координаты вставлены');
+}
+
+/* Вставляет координаты из буфера обмена в указанное поле.
+   Работает с любым форматом, который понимает parseCoords.
+   Показывает всплывающую плашку с результатом. */
+async function pasteCoordsFromClipboard(inputId){
+  const el = document.getElementById(inputId);
+  if(!el) return;
+
+  // Проверяем поддержку Clipboard API
+  if(!navigator.clipboard || !navigator.clipboard.readText){
+    // Фолбэк: просим вставить вручную
+    alert('Ваш браузер не разрешает автоматическое чтение буфера обмена.\nСкопируйте координаты и вставьте их в поле вручную.');
+    el.focus();
+    return;
+  }
+
+  let text = '';
+  try{
+    text = await navigator.clipboard.readText();
+  }catch(err){
+    // Пользователь отклонил разрешение или браузер заблокировал
+    alert('Не удалось прочитать буфер обмена.\nРазрешите доступ к буферу обмена в настройках браузера.');
+    return;
+  }
+
+  if(!text || !text.trim()){
+    showToast('Буфер обмена пуст');
+    return;
+  }
+
+  const {lat, lng} = parseCoords(text);
+  if(lat == null || lng == null){
+    showToast('Не удалось распознать координаты. Скопируйте их в Google Maps: зажмите точку на карте и нажмите «Скопировать».');
+    return;
+  }
+
+  // Подставляем координаты
+  el.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  // Триггерим input, чтобы связанные обработчики сработали
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  showToast('✓ Координаты вставлены');
+}
+
+/* Простая плашка внизу экрана — для коротких сообщений. */
+let _toastTimer = null;
+function showToast(text, ms = 3500){
+  let el = document.getElementById('app-toast');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'app-toast';
+    el.className = 'app-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.add('show');
+  if(_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => {
+    el.classList.remove('show');
+  }, ms);
+}
+
+/* Рендер списка подсказок. Универсальный. */
+function renderSuggestions(box, results, onPick){
+  if(!results.length){
+    box.innerHTML = '<div class="loading">Ничего не найдено</div>';
+    return;
+  }
+  box.innerHTML = results.map((r, idx) => `
+    <div class="suggestion" data-idx="${idx}">
+      <span class="name">${esc(r.name)}</span>
+      <span class="addr">${esc(r.addr)}</span>
+      <span class="src">${esc(r.source)}</span>
+    </div>
+  `).join('');
+
+  box.querySelectorAll('.suggestion').forEach(el => {
+    el.addEventListener('click', () => {
+      const i = parseInt(el.dataset.idx, 10);
+      const r = results[i];
+      if(r) onPick(r);
+    });
+  });
+}
+
 /* =============== ПОИСК АДРЕСА =============== */
 let searchAbort = null, searchTimerAddr = null;
 function searchAddress(){
@@ -6758,27 +7969,10 @@ function searchAddress(){
     box.innerHTML = '<div class="loading">Ищу...</div>';
     searchAbort = new AbortController();
     try{
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ru&q=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { signal: searchAbort.signal, headers: { 'Accept':'application/json' } });
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      const data = await res.json();
-      if(!data.length){ box.innerHTML = '<div class="loading">Ничего не найдено</div>'; return; }
-            box.innerHTML = data.map((d, idx) => {
-        const name = (d.display_name||'').split(',')[0];
-        const addr = (d.display_name||'').split(',').slice(1).join(',').trim();
-        return `<div class="suggestion" data-idx="${idx}">
-          <span class="name">${esc(name)}</span>
-          <span class="addr">${esc(addr)}</span>
-        </div>`;
-      }).join('');
-
-      box.querySelectorAll('.suggestion').forEach((el, idx) => {
-        el.addEventListener('click', ()=>{
-          const d = data[idx];
-          const lat = parseFloat(d.lat);
-          const lng = parseFloat(d.lon);
-          pickSuggestion(lat, lng);
-        });
+      const results = await geocodeSearch(q, searchAbort.signal);
+      renderSuggestions(box, results, (r) => {
+        input.value = `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`;
+        box.innerHTML = '';
       });
     }catch(e){
       if(e.name === 'AbortError') return;
@@ -6786,6 +7980,7 @@ function searchAddress(){
     }
   }, 500);
 }
+
 function pickSuggestion(lat, lng){
   const input = document.getElementById('m-coords');
   if(!input) return;
@@ -6830,10 +8025,60 @@ function migratePrepaidExpenses(){
 })();
 
 /* =============== СТАРТ =============== */
-trips.forEach(ensureTrip);
-migratePrepaidExpenses();
-DB.save(trips);
-render();
+(async function boot(){
+  // 1) Инициализация Supabase
+  const ok = initSupabase();
+
+  // 2) Загрузка пользователя (если сессия есть)
+  if(ok){
+    await loadCurrentUser();
+      if(ok){
+    // 1) Проверяем, не вернулся ли пользователь с ошибкой OAuth
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const urlError = params.get('error') || hashParams.get('error');
+    const urlErrorDesc = params.get('error_description') || hashParams.get('error_description');
+    if(urlError){
+      // Чистим URL
+      history.replaceState({}, '', window.location.pathname);
+      // Показываем ошибку после загрузки
+      setTimeout(() => {
+        if(urlError === 'access_denied'){
+          showToast('Вы отменили вход через Google.');
+        } else {
+          showToast('Ошибка входа: ' + (urlErrorDesc || urlError));
+        }
+      }, 500);
+    }
+
+    await loadCurrentUser();
+    subscribeAuthChanges((event, session) => {
+      if(event === 'SIGNED_OUT'){
+        render();
+      }
+      if(event === 'SIGNED_IN'){
+        // При успешном входе через Google — приветствие
+        if(session && session.user){
+          const meta = session.user.user_metadata || {};
+          if(meta.full_name || meta.name){
+            showToast(`✓ Привет, ${meta.full_name || meta.name}!`);
+          }
+        }
+        render();
+      }
+      if(event === 'TOKEN_REFRESHED'){
+        // Молча — сессия обновилась
+      }
+    });
+  }
+  }
+
+  // 3) Старая логика — миграции, рендер
+  trips.forEach(ensureTrip);
+  migratePrepaidExpenses();
+  DB.save(trips);
+  render();
+})();
 
 /* =============== SERVICE WORKER =============== */
 if ('serviceWorker' in navigator) {
