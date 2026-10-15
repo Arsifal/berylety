@@ -1849,6 +1849,60 @@ html{
   #sync-indicator.sync-error{ color: var(--danger); opacity: 1; }
   #sync-indicator.sync-offline{ color: var(--warn); opacity: 1; }
   #sync-indicator:hover{ opacity: 1; }
+
+    /* =========================================================
+     ЭКРАН ВХОДА (когда не залогинен)
+     ========================================================= */
+  .auth-landing{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    text-align: center;
+    gap: 12px;
+  }
+  .auth-landing-logo{
+    font-size: 72px;
+    line-height: 1;
+    margin-bottom: 8px;
+    opacity: .9;
+  }
+  .auth-landing-title{
+    margin: 0;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -.5px;
+    color: var(--text);
+  }
+  .auth-landing-sub{
+    margin: 0 0 24px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--muted);
+    max-width: 320px;
+  }
+  .auth-landing-btn{
+    width: 100%;
+    max-width: 320px;
+    padding: 14px 20px;
+    font-size: 15px;
+  }
+  .auth-landing-google{
+    width: 100%;
+    max-width: 320px;
+  }
+  .auth-landing-foot{
+    margin: 16px 0 0;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .auth-landing-foot .auth-link{
+    display: inline;
+    padding: 0;
+    font-size: 13.5px;
+  }
 </style>
 </head>
 <body>
@@ -2213,14 +2267,57 @@ async function doSignOut(){
   if(!sb) return;
   try{
     await sb.auth.signOut();
-    currentUser = null;
-    closeModal();
-    showToast('Вы вышли из аккаунта');
-    render();
   }catch(err){
-    console.error('Ошибка выхода:', err);
-    showToast('Не удалось выйти. Попробуйте ещё раз.');
+    console.error('Ошибка signOut:', err);
   }
+
+  // Очищаем локальное состояние полностью
+  currentUser = null;
+  trips = [];
+  state.view = 'list';
+  state.tripId = null;
+  state.tripTab = 'plan';
+
+  // Очищаем localStorage от поездок и очереди синхронизации
+  try{
+    localStorage.removeItem('trips');
+    localStorage.removeItem(SYNC_QUEUE_KEY);
+  }catch(e){}
+
+  // Очищаем IndexedDB с вложениями
+  try{
+    await clearAllAttachments();
+  }catch(e){
+    console.error('Не удалось очистить вложения:', e);
+  }
+
+  closeModal();
+  showToast('Вы вышли из аккаунта');
+  render();
+}
+
+/* Полная очистка IndexedDB с вложениями. */
+function clearAllAttachments(){
+  return new Promise((resolve) => {
+    try{
+      const req = indexedDB.open(ATTACH_DB_NAME, 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        if(!db.objectStoreNames.contains(ATTACH_STORE)){
+          db.close();
+          return resolve();
+        }
+        const tx = db.transaction(ATTACH_STORE, 'readwrite');
+        const store = tx.objectStore(ATTACH_STORE);
+        const clearReq = store.clear();
+        clearReq.onsuccess = () => { db.close(); resolve(); };
+        clearReq.onerror   = () => { db.close(); resolve(); };
+      };
+      req.onerror = () => resolve();
+    }catch(e){
+      resolve();
+    }
+  });
 }
 
 function initSupabase(){
@@ -3676,20 +3773,43 @@ function avatarHtml(user){
 }
 /* ---------- Список ---------- */
 function renderList(){
+  // Если не залогинен — показываем экран входа
+  if(!currentUser){
+    app.innerHTML = `
+      <header>
+        <h1>✈️ БериЛети</h1>
+        <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
+      </header>
+      <div class="auth-landing">
+        <div class="auth-landing-logo">✈️</div>
+        <h2 class="auth-landing-title">БериЛети</h2>
+        <p class="auth-landing-sub">Войдите, чтобы ваши поездки были доступны на всех устройствах</p>
+        <button class="btn auth-landing-btn" onclick="openAuthModal('signin')">Войти</button>
+        <button class="btn-google auth-landing-google" onclick="doGoogleSignIn()">
+          ${googleIconSvg()}
+          <span>Войти через Google</span>
+        </button>
+        <p class="auth-landing-foot">
+          Нет аккаунта? <button class="auth-link" onclick="openAuthModal('signup')">Зарегистрироваться</button>
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  // Дальше — обычный рендер списка
   const list = getVisibleTrips();
   const groups = groupTrips(list);
   const isEmpty = trips.length === 0;
   const noResults = !isEmpty && list.length === 0;
 
-    app.innerHTML = `
-        <header>
+  app.innerHTML = `
+    <header>
       <h1>✈️ Мои поездки</h1>
       <span class="icon-btn" id="sync-indicator" style="display:none" onclick="processSyncQueue()" title="Синхронизация">☁️</span>
-      ${currentUser
-        ? `<button class="icon-btn user-btn" onclick="openProfileMenu()" title="${esc(currentUser.email||'Профиль')}">
-             ${avatarHtml(currentUser)}
-           </button>`
-        : `<button class="icon-btn" onclick="openAuthModal()" title="Войти">👤</button>`}
+      <button class="icon-btn user-btn" onclick="openProfileMenu()" title="${esc(currentUser.email||'Профиль')}">
+        ${avatarHtml(currentUser)}
+      </button>
       <button class="icon-btn" onclick="openMenu()" title="Меню">⋯</button>
       <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
     </header>
@@ -3709,18 +3829,19 @@ function renderList(){
       </div>`}
     <div class="list">
       ${isEmpty
-  ? `<div class="empty emoji-plane">Пока нет поездок.<br>Нажмите «+», чтобы создать первую.</div>`
-  : noResults
-    ? `<div class="empty emoji-search">Ничего не найдено.<br>Попробуйте изменить запрос или фильтр.</div>`
-    : groups.map(groupBlock).join('')}
+        ? `<div class="empty emoji-plane">Пока нет поездок.<br>Нажмите «+», чтобы создать первую.</div>`
+        : noResults
+          ? `<div class="empty emoji-search">Ничего не найдено.<br>Попробуйте изменить запрос или фильтр.</div>`
+          : groups.map(groupBlock).join('')}
     </div>
-        <button class="btn fab" onclick="openNewTrip()">+</button>
+    <button class="btn fab" onclick="openNewTrip()">+</button>
   `;
   const si = document.getElementById('search-input');
   if(si && state.query){
     si.focus();
     si.setSelectionRange(si.value.length, si.value.length);
   }
+  renderSyncIndicator();
 }
 function groupBlock(g){
   const collapsed = !!state.collapsed[g.key];
@@ -8832,42 +8953,57 @@ function migratePrepaidExpenses(){
       }, 500);
     }
 
-        // 2b) Загружаем текущего пользователя
+    // 2b) Загружаем текущего пользователя
     await loadCurrentUser();
 
-    // Если залогинен — тянем поездки из облака
+    // 2c) Если залогинен — тянем поездки из облака
     if(currentUser){
-            try{
+      try{
         const cloudTrips = await cloudLoadTrips();
-        if(cloudTrips.length){
-          trips = cloudTrips;
-          DB.save(trips);
-        } else if(trips.length){
-          // В облаке пусто, но локально что-то есть — не мигрируем автоматически,
-          // спросим через диалог (как раньше)
-        }
+        trips = cloudTrips;
+        DB.save(trips);
         updateSyncStatus('synced');
       }catch(e){
         console.error('Ошибка загрузки из облака:', e);
+        // Фолбэк: показываем кэш из localStorage
+        // (если он есть — он остался с прошлого входа того же пользователя)
+        trips = DB.load();
         updateSyncStatus('error');
       }
+    } else {
+      // Не залогинен — поездок нет
+      trips = [];
     }
 
-    // 2c) Подписываемся на изменения авторизации
-    subscribeAuthChanges((event, session) => {
+    // 2d) Подписка на изменения авторизации
+    subscribeAuthChanges(async (event, session) => {
       if(event === 'SIGNED_OUT'){
         sessionStorage.removeItem('migration_asked');
+        currentUser = null;
+        trips = [];
         render();
+        return;
       }
       if(event === 'SIGNED_IN'){
+        currentUser = session ? session.user : null;
         if(session && session.user){
           const meta = session.user.user_metadata || {};
           if(meta.full_name || meta.name){
             showToast(`✓ Привет, ${meta.full_name || meta.name}!`);
           }
         }
+        // Загружаем поездки из облака
+        try{
+          const cloudTrips = await cloudLoadTrips();
+          trips = cloudTrips;
+          DB.save(trips);
+          updateSyncStatus('synced');
+        }catch(e){
+          console.error('Ошибка загрузки из облака:', e);
+          updateSyncStatus('error');
+        }
         render();
-        setTimeout(() => askMigrateToCloud(), 800);
+        return;
       }
       if(event === 'TOKEN_REFRESHED'){
         // Молча — сессия обновилась
@@ -8875,16 +9011,13 @@ function migratePrepaidExpenses(){
     });
   }
 
-    // 3) Старая логика — миграции, рендер
+  // 3) Применяем миграции к тому, что загрузили
   trips.forEach(ensureTrip);
   migratePrepaidExpenses();
   DB.save(trips);
-  render();
 
-  // 4) Если пользователь уже залогинен (сессия восстановлена из localStorage)
-  if(currentUser){
-    setTimeout(() => askMigrateToCloud(), 1000);
-  }
+  // 4) Первый рендер
+  render();
 })();
 
 /* =============== SERVICE WORKER =============== */
