@@ -2884,8 +2884,6 @@ async function cloudDeleteTrip(tripId){
 
 /* Вызывается при удалении поездки. Локально уже удалили. */
 async function syncTripDelete(tripId){
-  syncTrip(trip.id);
-
   if(!sb || !currentUser) return;
 
   if(!navigator.onLine){
@@ -8795,8 +8793,8 @@ function migratePrepaidExpenses(){
       if(!e.isPrepaid && looksLikePrepaidExpense(e)){ e.isPrepaid = true; changed++; }
     });
   });
-  if(changed > 0){
-    syncTrip(trip.id);
+    if(changed > 0){
+    DB.save(trips);
     console.log(`Миграция предоплат: помечено ${changed} трат.`);
   }
 }
@@ -8839,11 +8837,11 @@ function migratePrepaidExpenses(){
 
     // Если залогинен — тянем поездки из облака
     if(currentUser){
-      try{
+            try{
         const cloudTrips = await cloudLoadTrips();
         if(cloudTrips.length){
           trips = cloudTrips;
-          syncTrip(trip.id);
+          DB.save(trips);
         } else if(trips.length){
           // В облаке пусто, но локально что-то есть — не мигрируем автоматически,
           // спросим через диалог (как раньше)
@@ -8877,10 +8875,10 @@ function migratePrepaidExpenses(){
     });
   }
 
-  // 3) Старая логика — миграции, рендер
+    // 3) Старая логика — миграции, рендер
   trips.forEach(ensureTrip);
   migratePrepaidExpenses();
-  syncTrip(trip.id);
+  DB.save(trips);
   render();
 
   // 4) Если пользователь уже залогинен (сессия восстановлена из localStorage)
