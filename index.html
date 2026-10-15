@@ -2180,7 +2180,11 @@ function openProfileMenu(){
         <div class="profile-email">${esc(email)}</div>
         <div class="profile-provider">через ${esc(providerLabel)}</div>
       </div>
-      <div class="menu-list">
+            <div class="menu-list">
+        <button class="menu-item" onclick="askMigrateToCloud(true)">
+          <span class="emoji">☁️</span>
+          <span class="label">Перенести поездки в аккаунт<span class="hint"><br>Загрузить локальные данные в облако</span></span>
+        </button>
         <button class="menu-item" onclick="doSignOut()">
           <span class="emoji">🚪</span>
           <span class="label">Выйти из аккаунта</span>
@@ -2256,6 +2260,565 @@ function subscribeAuthChanges(onChange){
     currentUser = session ? session.user : null;
     if(typeof onChange === 'function') onChange(event, session);
   });
+}
+
+/* =========================================================
+   СИНХРОНИЗАЦИЯ — Работа с облаком
+   ========================================================= */
+
+/* Готовит объект trip для отправки в Supabase: раскладывает на таблицы. */
+function cloudDecomposeTrip(trip){
+  const uid = currentUser.id;
+  const now = new Date().toISOString();
+  return {
+    trip: {
+      id: trip.id,
+      user_id: uid,
+      title: trip.title || 'Без названия',
+      place: trip.place || '',
+      start_date: trip.start || null,
+      end_date: trip.end || null,
+      notes: trip.notes || '',
+      currency: trip.currency || 'RUB',
+      rates: trip.rates || {},
+      me: trip.me || 'Я',
+      day_start: trip.dayStart || '09:00',
+      day_end: trip.dayEnd || '21:00',
+      lunch_start: trip.lunchStart || '13:00',
+      lunch_end: trip.lunchEnd || '14:00',
+      budget_total: (trip.budget && trip.budget.total) || 0,
+      updated_at: now
+    },
+    activities: (trip.activities || []).map(a => ({
+      id: a.id,
+      user_id: uid,
+      trip_id: trip.id,
+      title: a.title || 'Без названия',
+      date: a.date || null,
+      time: a.time || '',
+      notes: a.notes || '',
+      lat: (typeof a.lat === 'number') ? a.lat : null,
+      lng: (typeof a.lng === 'number') ? a.lng : null,
+      type: a.type || 'other',
+      duration: a.duration || 60,
+      open_from: a.openFrom || '',
+      open_to: a.openTo || '',
+      price: a.price || 0,
+      add_to_expense: !!a.addToExpense,
+      checklist: a.checklist || [],
+      linked_ticket_id: a.linkedTicketId || null,
+      linked_ticket_role: a.linkedTicketRole || null,
+      linked_ticket_segment_idx: (typeof a.linkedTicketSegmentIdx === 'number') ? a.linkedTicketSegmentIdx : null,
+      locked_by_ticket: !!a.lockedByTicket,
+      updated_at: now
+    })),
+    lodging: (trip.lodging || []).map(l => ({
+      id: l.id,
+      user_id: uid,
+      trip_id: trip.id,
+      title: l.title || '',
+      address: l.address || '',
+      lat: (typeof l.lat === 'number') ? l.lat : null,
+      lng: (typeof l.lng === 'number') ? l.lng : null,
+      check_in_date: l.checkInDate || null,
+      check_in_time: l.checkInTime || '',
+      check_out_date: l.checkOutDate || null,
+      check_out_time: l.checkOutTime || '',
+      price: l.price || 0,
+      price_note: l.priceNote || '',
+      link: l.link || '',
+      notes: l.notes || '',
+      attachment_id: l.attachmentId || null,
+      attachment_name: l.attachmentName || null,
+      attachment_size: l.attachmentSize || null,
+      attachment_type: l.attachmentType || null,
+      updated_at: now
+    })),
+    tickets: [],
+    ticket_segments: [],
+    expenses: [],
+    categories: [],
+    savings: [],
+    savings_transactions: [],
+    checklists: []
+  };
+}
+
+/* Собирает билеты и сегменты отдельно (нужно две таблицы). */
+function cloudDecomposeTickets(trip, uid, now){
+  const tickets = [];
+  const segments = [];
+  (trip.tickets || []).forEach(tk => {
+    tickets.push({
+      id: tk.id,
+      user_id: uid,
+      trip_id: trip.id,
+      type: tk.type || 'plane',
+      carrier: tk.carrier || '',
+      ticket_number: tk.ticketNumber || '',
+      price: tk.price || 0,
+      link: tk.link || '',
+      notes: tk.notes || '',
+      to_plan: !!tk.toPlan,
+      attachment_id: tk.attachmentId || null,
+      attachment_name: tk.attachmentName || null,
+      attachment_size: tk.attachmentSize || null,
+      attachment_type: tk.attachmentType || null,
+      updated_at: now
+    });
+    (tk.segments || []).forEach((sg, i) => {
+      segments.push({
+        id: sg.id || `${tk.id}_${i}`,
+        user_id: uid,
+        ticket_id: tk.id,
+        idx: i,
+        from_city: sg.from || '',
+        to_city: sg.to || '',
+        from_lat: (typeof sg.fromLat === 'number') ? sg.fromLat : null,
+        from_lng: (typeof sg.fromLng === 'number') ? sg.fromLng : null,
+        to_lat: (typeof sg.toLat === 'number') ? sg.toLat : null,
+        to_lng: (typeof sg.toLng === 'number') ? sg.toLng : null,
+        depart_date: sg.departDate || null,
+        depart_time: sg.departTime || '',
+        arrive_date: sg.arriveDate || null,
+        arrive_time: sg.arriveTime || '',
+        carrier: sg.carrier || '',
+        number: sg.number || '',
+        seat: sg.seat || ''
+      });
+    });
+  });
+  return { tickets, segments };
+}
+
+/* Собирает бюджет: expenses, categories, savings, savings_transactions. */
+function cloudDecomposeBudget(trip, uid, now){
+  const b = trip.budget || {};
+  const expenses = (b.expenses || []).map(e => ({
+    id: e.id,
+    user_id: uid,
+    trip_id: trip.id,
+    title: e.title || '',
+    amount: e.amount || 0,
+    date: e.date || null,
+    category_id: e.categoryId || null,
+    note: e.note || '',
+    price_in_rub: !!e.priceInRUB,
+    is_prepaid: !!e.isPrepaid,
+    paid_by: e.paidBy || 'Я',
+    split_with: e.splitWith || 1,
+    linked_activity_id: e.linkedActivityId || null,
+    updated_at: now
+  }));
+  const categories = (b.categories || []).map(c => ({
+    id: c.id,
+    user_id: uid,
+    trip_id: trip.id,
+    name: c.name || '',
+    planned: c.planned || 0,
+    color: c.color || '#8e8e93'
+  }));
+  const savings = [];
+  const savings_tx = [];
+  (b.savings || []).forEach(s => {
+    savings.push({
+      id: s.id,
+      user_id: uid,
+      trip_id: trip.id,
+      title: s.title || '',
+      target: s.target || 0,
+      deadline: s.deadline || null
+    });
+    (s.transactions || []).forEach(tr => {
+      savings_tx.push({
+        id: tr.id,
+        user_id: uid,
+        saving_id: s.id,
+        amount: tr.amount || 0,
+        date: tr.date || null,
+        note: tr.note || ''
+      });
+    });
+  });
+  return { expenses, categories, savings, savings_tx };
+}
+
+/* Собирает чек-листы (packing + shopping) в одну таблицу. */
+function cloudDecomposeChecklists(trip, uid){
+  const out = [];
+  const cl = trip.checklists || {};
+  (cl.packing || []).forEach(item => {
+    out.push({
+      id: item.id,
+      user_id: uid,
+      trip_id: trip.id,
+      section: 'packing',
+      text: item.text || '',
+      note: item.note || '',
+      price: item.price || 0,
+      done: !!item.done,
+      add_to_budget: !!item.addToBudget
+    });
+  });
+  (cl.shopping || []).forEach(item => {
+    out.push({
+      id: item.id,
+      user_id: uid,
+      trip_id: trip.id,
+      section: 'shopping',
+      text: item.text || '',
+      note: item.note || '',
+      price: item.price || 0,
+      done: !!item.done,
+      add_to_budget: !!item.addToBudget
+    });
+  });
+  return out;
+}
+
+/* Отправляет одну поездку в облако целиком.
+   Сначала удаляет старые записи (по trip_id), потом вставляет новые.
+   Это проще, чем мержить по одной записи. */
+async function cloudSaveTrip(trip){
+  if(!sb || !currentUser) throw new Error('Не авторизован');
+  const uid = currentUser.id;
+  const now = new Date().toISOString();
+
+  const parts = cloudDecomposeTrip(trip);
+  const tkParts = cloudDecomposeTickets(trip, uid, now);
+  const bParts = cloudDecomposeBudget(trip, uid, now);
+  const clItems = cloudDecomposeChecklists(trip, uid);
+
+  // Собираем все данные
+  const tripRow = parts.trip;
+  const activities = parts.activities;
+  const lodging = parts.lodging;
+  const tickets = tkParts.tickets;
+  const segments = tkParts.segments;
+  const expenses = bParts.expenses;
+  const categories = bParts.categories;
+  const savings = bParts.savings;
+  const savingsTx = bParts.savings_tx;
+
+  // 1) Удаляем старые данные этой поездки
+  //    (кроме trips — его обновим через upsert)
+  await Promise.all([
+    sb.from('activities').delete().eq('trip_id', trip.id).eq('user_id', uid),
+    sb.from('lodging').delete().eq('trip_id', trip.id).eq('user_id', uid),
+    sb.from('tickets').delete().eq('trip_id', trip.id).eq('user_id', uid),
+    sb.from('expenses').delete().eq('trip_id', trip.id).eq('user_id', uid),
+    sb.from('categories').delete().eq('trip_id', trip.id).eq('user_id', uid),
+    sb.from('savings').delete().eq('trip_id', trip.id).eq('user_id', uid),
+    sb.from('checklists').delete().eq('trip_id', trip.id).eq('user_id', uid)
+  ]);
+  // Сегменты удаляются каскадом (on delete cascade от tickets)
+
+  // 2) Вставляем новое
+  const inserts = [];
+  inserts.push(sb.from('trips').upsert(tripRow));
+  if(activities.length)        inserts.push(sb.from('activities').insert(activities));
+  if(lodging.length)           inserts.push(sb.from('lodging').insert(lodging));
+  if(tickets.length)           inserts.push(sb.from('tickets').insert(tickets));
+  if(segments.length)          inserts.push(sb.from('ticket_segments').insert(segments));
+  if(expenses.length)          inserts.push(sb.from('expenses').insert(expenses));
+  if(categories.length)        inserts.push(sb.from('categories').insert(categories));
+  if(savings.length)           inserts.push(sb.from('savings').insert(savings));
+  if(savingsTx.length)         inserts.push(sb.from('savings_transactions').insert(savingsTx));
+  if(clItems.length)           inserts.push(sb.from('checklists').insert(clItems));
+
+  const results = await Promise.all(inserts);
+  const failed = results.filter(r => r.error);
+  if(failed.length){
+    console.error('Ошибка облачного сохранения:', failed.map(f => f.error));
+    throw new Error(failed[0].error.message || 'Ошибка сохранения в облако');
+  }
+}
+
+/* Загружает все поездки пользователя из облака.
+   Собирает обратно в формат trip-объекта. */
+async function cloudLoadTrips(){
+  if(!sb || !currentUser) return [];
+  const uid = currentUser.id;
+
+  // 1) Все поездки
+  const { data: tripsData, error: tripsErr } = await sb
+    .from('trips')
+    .select('*')
+    .eq('user_id', uid)
+    .order('start_date', { ascending: false });
+  if(tripsErr) throw tripsErr;
+  if(!tripsData || !tripsData.length) return [];
+
+  const tripIds = tripsData.map(t => t.id);
+
+  // 2) Параллельно тянем все вложенные таблицы
+  const [
+    { data: actsData },
+    { data: lodgeData },
+    { data: ticketsData },
+    { data: segmentsData },
+    { data: expensesData },
+    { data: categoriesData },
+    { data: savingsData },
+    { data: savingsTxData },
+    { data: clData }
+  ] = await Promise.all([
+    sb.from('activities').select('*').in('trip_id', tripIds),
+    sb.from('lodging').select('*').in('trip_id', tripIds),
+    sb.from('tickets').select('*').in('trip_id', tripIds),
+    sb.from('ticket_segments').select('*').in('ticket_id', (await sb.from('tickets').select('id').in('trip_id', tripIds)).data?.map(t => t.id) || []),
+    sb.from('expenses').select('*').in('trip_id', tripIds),
+    sb.from('categories').select('*').in('trip_id', tripIds),
+    sb.from('savings').select('*').in('trip_id', tripIds),
+    sb.from('savings_transactions').select('*').in('saving_id', (await sb.from('savings').select('id').in('trip_id', tripIds)).data?.map(s => s.id) || []),
+    sb.from('checklists').select('*').in('trip_id', tripIds)
+  ]);
+
+  // 3) Индексируем по trip_id
+  const idx = {};
+  tripIds.forEach(id => {
+    idx[id] = { acts: [], lodge: [], tickets: [], expenses: [], categories: [], savings: [], cl: [] };
+  });
+  (actsData || []).forEach(x => idx[x.trip_id]?.acts.push(x));
+  (lodgeData || []).forEach(x => idx[x.trip_id]?.lodge.push(x));
+  (ticketsData || []).forEach(x => idx[x.trip_id]?.tickets.push(x));
+  (expensesData || []).forEach(x => idx[x.trip_id]?.expenses.push(x));
+  (categoriesData || []).forEach(x => idx[x.trip_id]?.categories.push(x));
+  (savingsData || []).forEach(x => idx[x.trip_id]?.savings.push(x));
+  (clData || []).forEach(x => idx[x.trip_id]?.cl.push(x));
+
+  // 4) Индексируем сегменты по ticket_id
+  const segByTicket = {};
+  (segmentsData || []).forEach(sg => {
+    if(!segByTicket[sg.ticket_id]) segByTicket[sg.ticket_id] = [];
+    segByTicket[sg.ticket_id].push(sg);
+  });
+  Object.values(segByTicket).forEach(list => list.sort((a, b) => a.idx - b.idx));
+
+  // 5) Индексируем транзакции накоплений по saving_id
+  const txBySaving = {};
+  (savingsTxData || []).forEach(tr => {
+    if(!txBySaving[tr.saving_id]) txBySaving[tr.saving_id] = [];
+    txBySaving[tr.saving_id].push(tr);
+  });
+
+  // 6) Собираем trips
+  return tripsData.map(t => {
+    const parts = idx[t.id];
+    const activities = parts.acts.map(a => ({
+      id: a.id,
+      title: a.title,
+      date: a.date || '',
+      time: a.time || '',
+      notes: a.notes || '',
+      lat: a.lat,
+      lng: a.lng,
+      type: a.type || 'other',
+      duration: a.duration || 60,
+      openFrom: a.open_from || '',
+      openTo: a.open_to || '',
+      price: a.price || 0,
+      addToExpense: !!a.add_to_expense,
+      checklist: a.checklist || [],
+      linkedTicketId: a.linked_ticket_id || null,
+      linkedTicketRole: a.linked_ticket_role || null,
+      linkedTicketSegmentIdx: (typeof a.linked_ticket_segment_idx === 'number') ? a.linked_ticket_segment_idx : null,
+      lockedByTicket: !!a.locked_by_ticket
+    }));
+    const lodging = parts.lodge.map(l => ({
+      id: l.id,
+      title: l.title || '',
+      address: l.address || '',
+      lat: l.lat,
+      lng: l.lng,
+      checkInDate: l.check_in_date || '',
+      checkInTime: l.check_in_time || '',
+      checkOutDate: l.check_out_date || '',
+      checkOutTime: l.check_out_time || '',
+      price: l.price || 0,
+      priceNote: l.price_note || '',
+      link: l.link || '',
+      notes: l.notes || '',
+      attachmentId: l.attachment_id || null,
+      attachmentName: l.attachment_name || null,
+      attachmentSize: l.attachment_size || null,
+      attachmentType: l.attachment_type || null
+    }));
+    const tickets = parts.tickets.map(tk => ({
+      id: tk.id,
+      type: tk.type || 'plane',
+      carrier: tk.carrier || '',
+      ticketNumber: tk.ticket_number || '',
+      price: tk.price || 0,
+      link: tk.link || '',
+      notes: tk.notes || '',
+      toPlan: !!tk.to_plan,
+      attachmentId: tk.attachment_id || null,
+      attachmentName: tk.attachment_name || null,
+      attachmentSize: tk.attachment_size || null,
+      attachmentType: tk.attachment_type || null,
+      segments: (segByTicket[tk.id] || []).map(sg => ({
+        id: sg.id,
+        from: sg.from_city || '',
+        to: sg.to_city || '',
+        fromLat: sg.from_lat,
+        fromLng: sg.from_lng,
+        toLat: sg.to_lat,
+        toLng: sg.to_lng,
+        departDate: sg.depart_date || '',
+        departTime: sg.depart_time || '',
+        arriveDate: sg.arrive_date || '',
+        arriveTime: sg.arrive_time || '',
+        carrier: sg.carrier || '',
+        number: sg.number || '',
+        seat: sg.seat || ''
+      }))
+    }));
+    const categories = parts.categories.map(c => ({
+      id: c.id,
+      name: c.name || '',
+      planned: c.planned || 0,
+      color: c.color || '#8e8e93'
+    }));
+    const expenses = parts.expenses.map(e => ({
+      id: e.id,
+      title: e.title || '',
+      amount: e.amount || 0,
+      date: e.date || '',
+      categoryId: e.category_id || '',
+      note: e.note || '',
+      priceInRUB: !!e.price_in_rub,
+      isPrepaid: !!e.is_prepaid,
+      paidBy: e.paid_by || 'Я',
+      splitWith: e.split_with || 1,
+      linkedActivityId: e.linked_activity_id || null
+    }));
+    const savings = parts.savings.map(s => ({
+      id: s.id,
+      title: s.title || '',
+      target: s.target || 0,
+      deadline: s.deadline || '',
+      transactions: (txBySaving[s.id] || []).map(tr => ({
+        id: tr.id,
+        amount: tr.amount || 0,
+        date: tr.date || '',
+        note: tr.note || ''
+      }))
+    }));
+    const packing = parts.cl.filter(x => x.section === 'packing').map(x => ({
+      id: x.id, text: x.text, note: x.note, price: x.price, done: !!x.done
+    }));
+    const shopping = parts.cl.filter(x => x.section === 'shopping').map(x => ({
+      id: x.id, text: x.text, note: x.note, price: x.price, done: !!x.done, addToBudget: !!x.add_to_budget
+    }));
+
+    return {
+      id: t.id,
+      title: t.title || 'Без названия',
+      place: t.place || '',
+      start: t.start_date || '',
+      end: t.end_date || '',
+      notes: t.notes || '',
+      currency: t.currency || 'RUB',
+      rates: t.rates || {},
+      me: t.me || 'Я',
+      dayStart: t.day_start || '09:00',
+      dayEnd: t.day_end || '21:00',
+      lunchStart: t.lunch_start || '13:00',
+      lunchEnd: t.lunch_end || '14:00',
+      activities,
+      lodging,
+      tickets,
+      budget: {
+        total: t.budget_total || 0,
+        categories,
+        expenses,
+        savings
+      },
+      checklists: { packing, shopping }
+    };
+  });
+}
+
+/* Спрашивает у пользователя, переносить ли локальные поездки в облако.
+   Вызывается после входа в аккаунт, если локальные поездки есть. */
+async function askMigrateToCloud(force = false){
+  if(!sb || !currentUser) return;
+  if(!trips || !trips.length){
+    if(force) showToast('Локальных поездок нет');
+    return;
+  }
+
+  // Проверяем, есть ли уже данные в облаке
+  if(!force){
+    try{
+      const { data, error } = await sb
+        .from('trips')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .limit(1);
+      if(error) throw error;
+      if(data && data.length){
+        return;
+      }
+    }catch(e){
+      console.error('Не удалось проверить облако:', e);
+      return;
+    }
+  }
+
+    // Не показываем повторно в этой сессии (если не форсировано)
+  if(!force){
+    if(sessionStorage.getItem('migration_asked') === '1') return;
+    sessionStorage.setItem('migration_asked', '1');
+  }
+
+  const cnt = trips.length;
+  const word = cnt === 1 ? 'поездка' : (cnt < 5 ? 'поездки' : 'поездок');
+
+  openModal(`
+    <div class="modal-head">
+      <h3>Перенести в аккаунт?</h3>
+      <button class="btn-ghost" onclick="closeModal()">Позже</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin:0;font-size:14.5px;line-height:1.55;color:var(--text)">
+        У вас <b>${cnt} ${word}</b> сохранено на этом устройстве.
+        Перенести их в ваш аккаунт, чтобы они были доступны на всех устройствах?
+      </p>
+      <p class="muted" style="margin:8px 0 0;font-size:13px;line-height:1.5">
+        Локальная копия останется на месте — на всякий случай. Если что-то пойдёт не так, данные не потеряются.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="runMigration()" id="migrate-btn">Перенести ${cnt} ${word}</button>
+    </div>
+  `);
+}
+
+/* Выполняет миграцию локальных поездок в облако. */
+async function runMigration(){
+  if(!sb || !currentUser) return;
+  const btn = document.getElementById('migrate-btn');
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = 'Переношу…';
+  }
+
+  let done = 0;
+  const total = trips.length;
+  try{
+    for(const trip of trips){
+      await cloudSaveTrip(trip);
+      done++;
+      if(btn) btn.textContent = `Переношу… ${done}/${total}`;
+    }
+    closeModal();
+    showToast(`✓ Перенесено поездок: ${done}`, 5000);
+  }catch(e){
+    console.error('Ошибка миграции:', e);
+    showToast(`Ошибка переноса после ${done} из ${total}: ${e.message || 'неизвестно'}`, 7000);
+  }
 }
 
 /* =============== ТЕМЫ =============== */
@@ -8052,12 +8615,12 @@ function migratePrepaidExpenses(){
     }
 
     await loadCurrentUser();
-    subscribeAuthChanges((event, session) => {
+        subscribeAuthChanges((event, session) => {
       if(event === 'SIGNED_OUT'){
+        sessionStorage.removeItem('migration_asked');
         render();
       }
       if(event === 'SIGNED_IN'){
-        // При успешном входе через Google — приветствие
         if(session && session.user){
           const meta = session.user.user_metadata || {};
           if(meta.full_name || meta.name){
@@ -8065,6 +8628,9 @@ function migratePrepaidExpenses(){
           }
         }
         render();
+        // Спросить про миграцию — с небольшой задержкой,
+        // чтобы UI успел отрисоваться
+        setTimeout(() => askMigrateToCloud(), 800);
       }
       if(event === 'TOKEN_REFRESHED'){
         // Молча — сессия обновилась
@@ -8073,11 +8639,17 @@ function migratePrepaidExpenses(){
   }
   }
 
-  // 3) Старая логика — миграции, рендер
+    // 3) Старая логика — миграции, рендер
   trips.forEach(ensureTrip);
   migratePrepaidExpenses();
   DB.save(trips);
   render();
+
+  // 4) Если пользователь уже залогинен (сессия восстановлена из localStorage)
+  //    — предложить миграцию через 1 секунду
+  if(currentUser){
+    setTimeout(() => askMigrateToCloud(), 1000);
+  }
 })();
 
 /* =============== SERVICE WORKER =============== */
