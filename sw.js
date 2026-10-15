@@ -1,12 +1,13 @@
 // Service Worker для «Мои поездки»
 // Версия кэша. Меняй при каждом обновлении приложения — иначе старые файлы останутся в кэше!
-const CACHE_VERSION = 'trips-v30';
+const CACHE_VERSION = 'trips-v32';
 
 // Файлы, которые кэшируем при установке
 const URLS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 ];
@@ -33,8 +34,15 @@ self.addEventListener('activate', (event) => {
 
 // Перехват запросов: сначала кэш, потом сеть
 self.addEventListener('fetch', (event) => {
-  // Не перехватываем запросы к API погоды и геокодингу — они всегда должны идти в сеть
   const url = event.request.url;
+
+  // Игнорируем запросы от браузерных расширений (chrome-extension://,
+  // moz-extension://) — их нельзя кэшировать, и они ломают SW.
+  if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://') || url.startsWith('safari-extension://')) {
+    return;
+  }
+
+  // Не перехватываем запросы к API погоды и геокодингу — они всегда должны идти в сеть
   if (url.includes('nominatim.openstreetmap.org') || url.includes('api.open-meteo.com')) {
     return;
   }
