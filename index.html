@@ -1838,6 +1838,17 @@ html{
     letter-spacing: .5px;
     font-weight: 600;
   }
+
+    /* Индикатор синхронизации */
+  #sync-indicator{
+    font-size: 15px;
+    padding: 6px 8px;
+    opacity: .7;
+    transition: opacity .2s, color .2s;
+  }
+  #sync-indicator.sync-error{ color: var(--danger); opacity: 1; }
+  #sync-indicator.sync-offline{ color: var(--warn); opacity: 1; }
+  #sync-indicator:hover{ opacity: 1; }
 </style>
 </head>
 <body>
@@ -2755,6 +2766,189 @@ async function cloudLoadTrips(){
   });
 }
 
+/* =========================================================
+   СИНХРОНИЗАЦИЯ — Двусторонняя, с офлайн-очередью
+   ========================================================= */
+
+const SYNC_QUEUE_KEY = 'berileti-sync-queue';
+const SYNC_STATUS_KEY = 'berileti-sync-status';
+
+/* Состояние синхронизации. Отображается в шапке. */
+let syncState = {
+  status: 'idle',   // 'idle' | 'syncing' | 'synced' | 'offline' | 'error'
+  pending: 0,       // сколько операций в очереди
+  lastSync: null,   // timestamp
+};
+
+function updateSyncStatus(status, extra){
+  syncState.status = status;
+  if(extra && typeof extra.pending === 'number') syncState.pending = extra.pending;
+  if(status === 'synced') syncState.lastSync = Date.now();
+  renderSyncIndicator();
+}
+
+/* Отрисовывает/обновляет индикатор синхронизации в шапке.
+   Ищет #sync-indicator и обновляет содержимое. */
+function renderSyncIndicator(){
+  const el = document.getElementById('sync-indicator');
+  if(!el) return;
+  if(!currentUser){
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const map = {
+    idle:     { icon: '☁️', title: 'Всё синхронизировано' },
+    syncing:  { icon: '⟳',  title: 'Синхронизация…' },
+    synced:   { icon: '☁️✓', title: 'Всё синхронизировано' },
+    offline:  { icon: '☁️⚠', title: `Офлайн · ${syncState.pending} в очереди` },
+    error:    { icon: '☁️✕', title: 'Ошибка синхронизации' },
+  };
+  const s = map[syncState.status] || map.idle;
+  el.textContent = s.icon;
+  el.title = s.title;
+  el.classList.toggle('sync-error', syncState.status === 'error');
+  el.classList.toggle('sync-offline', syncState.status === 'offline');
+}
+
+/* ---------- Очередь ---------- */
+function loadSyncQueue(){
+  try{
+    return JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+  }catch(e){ return []; }
+}
+function saveSyncQueue(q){
+  try{
+    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(q));
+  }catch(e){}
+}
+function enqueueSync(op){
+  const q = loadSyncQueue();
+  // Схлопываем операции: если уже есть операция по тому же tripId —
+  // заменяем её (сохраняем только последнее состояние поездки).
+  const idx = q.findIndex(x => x.tripId === op.tripId);
+  if(idx >= 0) q[idx] = op;
+  else q.push(op);
+  saveSyncQueue(q);
+  updateSyncStatus(navigator.onLine ? 'syncing' : 'offline', { pending: q.length });
+}
+function dequeueSync(tripId){
+  const q = loadSyncQueue();
+  const idx = q.findIndex(x => x.tripId === tripId);
+  if(idx >= 0){
+    q.splice(idx, 1);
+    saveSyncQueue(q);
+  }
+  updateSyncStatus(navigator.onLine ? 'syncing' : 'offline', { pending: q.length });
+}
+
+/* ---------- Главная функция синхронизации одной поездки ---------- */
+/* Вызывается после каждого изменения поездки в UI.
+   Гарантирует: локально всегда сохранено; в облако — по возможности. */
+async function syncTrip(tripId){
+  const trip = trips.find(t => t.id === tripId);
+  if(!trip) return;
+
+  // 1) Локально — всегда
+  DB.save(trips);
+
+  // 2) Без аккаунта — синхронизировать некуда
+  if(!sb || !currentUser) return;
+
+  // 3) Без сети — в очередь
+  if(!navigator.onLine){
+    enqueueSync({ type: 'upsert', tripId, ts: Date.now() });
+    return;
+  }
+
+  // 4) Есть сеть и аккаунт — синхронизируем
+  updateSyncStatus('syncing');
+  try{
+    await cloudSaveTrip(trip);
+    dequeueSync(tripId);
+    updateSyncStatus('synced', { pending: loadSyncQueue().length });
+  }catch(e){
+    console.error('Ошибка синхронизации поездки:', e);
+    enqueueSync({ type: 'upsert', tripId, ts: Date.now() });
+    updateSyncStatus('error', { pending: loadSyncQueue().length });
+  }
+}
+
+/* ---------- Удаление поездки из облака ---------- */
+async function cloudDeleteTrip(tripId){
+  if(!sb || !currentUser) return;
+  // Каскадное удаление в БД сработает через on delete cascade
+  const { error } = await sb.from('trips').delete().eq('id', tripId).eq('user_id', currentUser.id);
+  if(error) throw error;
+}
+
+/* Вызывается при удалении поездки. Локально уже удалили. */
+async function syncTripDelete(tripId){
+  syncTrip(trip.id);
+
+  if(!sb || !currentUser) return;
+
+  if(!navigator.onLine){
+    enqueueSync({ type: 'delete', tripId, ts: Date.now() });
+    return;
+  }
+
+  updateSyncStatus('syncing');
+  try{
+    await cloudDeleteTrip(tripId);
+    dequeueSync(tripId);
+    updateSyncStatus('synced', { pending: loadSyncQueue().length });
+  }catch(e){
+    console.error('Ошибка удаления поездки из облака:', e);
+    enqueueSync({ type: 'delete', tripId, ts: Date.now() });
+    updateSyncStatus('error', { pending: loadSyncQueue().length });
+  }
+}
+
+/* ---------- Обработка очереди при появлении сети ---------- */
+async function processSyncQueue(){
+  if(!sb || !currentUser) return;
+  if(!navigator.onLine) return;
+
+  const q = loadSyncQueue();
+  if(!q.length) return;
+
+  updateSyncStatus('syncing');
+  let failed = 0;
+
+  for(const op of q){
+    try{
+      if(op.type === 'upsert'){
+        const trip = trips.find(t => t.id === op.tripId);
+        if(trip) await cloudSaveTrip(trip);
+        else await cloudDeleteTrip(op.tripId);
+      } else if(op.type === 'delete'){
+        await cloudDeleteTrip(op.tripId);
+      }
+      dequeueSync(op.tripId);
+    }catch(e){
+      console.error('Ошибка синхронизации очереди:', op, e);
+      failed++;
+    }
+  }
+
+  const remaining = loadSyncQueue().length;
+  if(remaining === 0){
+    updateSyncStatus('synced');
+  } else {
+    updateSyncStatus('error', { pending: remaining });
+  }
+}
+
+/* При появлении сети — прогоняем очередь */
+window.addEventListener('online',  () => {
+  updateSyncStatus('syncing');
+  processSyncQueue();
+});
+window.addEventListener('offline', () => {
+  updateSyncStatus('offline', { pending: loadSyncQueue().length });
+});
+
 /* Спрашивает у пользователя, переносить ли локальные поездки в облако.
    Вызывается после входа в аккаунт, если локальные поездки есть. */
 async function askMigrateToCloud(force = false){
@@ -3490,8 +3684,9 @@ function renderList(){
   const noResults = !isEmpty && list.length === 0;
 
     app.innerHTML = `
-    <header>
+        <header>
       <h1>✈️ Мои поездки</h1>
+      <span class="icon-btn" id="sync-indicator" style="display:none" onclick="processSyncQueue()" title="Синхронизация">☁️</span>
       ${currentUser
         ? `<button class="icon-btn user-btn" onclick="openProfileMenu()" title="${esc(currentUser.email||'Профиль')}">
              ${avatarHtml(currentUser)}
@@ -3623,8 +3818,10 @@ function saveTrip(){
   });
   const b = parseFloat(document.getElementById('f-budget').value);
   if(!isNaN(b) && b > 0) trip.budget.total = b;
-  trips.push(trip); DB.save(trips);
-  state.view='trip'; state.tripId=trip.id; state.tripTab='plan'; render();
+    trips.push(trip);
+  state.view='trip'; state.tripId=trip.id; state.tripTab='plan';
+  render();
+  syncTrip(trip.id);
 }
 function renderEditTrip(){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -3673,10 +3870,10 @@ function saveTripEdit(){
     notes: document.getElementById('f-notes').value.trim(),
     currency: document.getElementById('f-currency').value || 'RUB'
   });
-  const b = parseFloat(document.getElementById('f-budget').value);
+    const b = parseFloat(document.getElementById('f-budget').value);
   trip.budget.total = isNaN(b) ? 0 : b;
-  DB.save(trips);
   state.view='trip'; render();
+  syncTrip(trip.id);
 }
 function openTrip(id){
   state.view='trip'; state.tripId=id; state.tripTab='plan';
@@ -3714,8 +3911,9 @@ function deleteTrip(id){
       });
     }
   }
-  trips = trips.filter(t=>t.id!==id); DB.save(trips);
+  trips = trips.filter(t=>t.id!==id);
   state.view='list'; render();
+  syncTripDelete(id);
 }
 
 /* ---------- Экран поездки ---------- */
@@ -3724,10 +3922,11 @@ function renderTrip(){
   if(!trip){ state.view='list'; return render(); }
 
   // Рисуем каркас поездки только один раз
-  app.innerHTML = `
+    app.innerHTML = `
     <header>
             <button class="back" onclick="goBack()">‹</button>
       <h1>${esc(trip.title)}</h1>
+      <span class="icon-btn" id="sync-indicator" style="display:none" onclick="processSyncQueue()" title="Синхронизация">☁️</span>
       <button class="icon-btn" onclick="openTripMenu()" title="Меню поездки">⋯</button>
       <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
     </header>
@@ -4426,17 +4625,16 @@ function ticketWindowsForDay(trip, day){
     failed.push({ item, reason });
   });
 
-    trip._autoFailed = failed.map(f => ({ id: f.item.id, reason: f.reason }));
+      trip._autoFailed = failed.map(f => ({ id: f.item.id, reason: f.reason }));
 
   // Синхронизируем все места-билеты по их билетам:
-  // это вернёт им корректные даты, время и порядок
   (trip.tickets || []).forEach(tk => {
     if(tk.toPlan) syncTicketActivities(trip, tk.id);
   });
 
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
   setTimeout(()=> alert(`Распределено: ${placed.length}. Не поместилось: ${failed.length}.`), 80);
 }
 
@@ -4704,7 +4902,7 @@ function renderMapTab(trip){
         // Перерисовываем маркеры, когда что-то догрузилось
         const t2 = ensureTrip(trips.find(x => x.id === trip.id));
         renderMapTabMarkers(t2);
-        DB.save(trips);
+        syncTrip(trip.id);
       }).then(()=>{
         // После завершения всех запросов — обновляем статус
         const t2 = ensureTrip(trips.find(x => x.id === trip.id));
@@ -5209,7 +5407,7 @@ function bindLodgingAttachControls(){
           l.attachmentName = rec.name;
           l.attachmentSize = rec.size;
           l.attachmentType = rec.type;
-          DB.save(trips);
+          syncTrip(trip.id);
         }
       } else {
         state._lodgingAttachDraft = rec;
@@ -5244,7 +5442,7 @@ function removeLodgingAttachment(){
       delete l.attachmentName;
       delete l.attachmentSize;
       delete l.attachmentType;
-      DB.save(trips);
+      syncTrip(trip.id);
     }
   } else {
     if(state._lodgingAttachDraft){
@@ -5316,9 +5514,9 @@ function saveLodging(id){
   }
     state._editingLodgingId = null;
   state._lodgingAttachDraft = null;
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
 }
 function deleteLodging(id){
   if(!confirm('Удалить это жильё?')) return;
@@ -5328,9 +5526,9 @@ function deleteLodging(id){
     deleteAttachment(doomed.attachmentId);
   }
   trip.lodging = trip.lodging.filter(l => l.id !== id);
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
 }
 let lodgeAbort = null, lodgeTimer = null;
 function searchLodgingAddress(){
@@ -5603,7 +5801,7 @@ function bindTicketAttachControls(){
           t.attachmentName = rec.name;
           t.attachmentSize = rec.size;
           t.attachmentType = rec.type;
-          DB.save(trips);
+          syncTrip(trip.id);
         }
       } else {
         // Новый билет — держим в черновике state._ticketAttachDraft
@@ -5638,7 +5836,7 @@ function removeTicketAttachment(){
       delete t.attachmentName;
       delete t.attachmentSize;
       delete t.attachmentType;
-      DB.save(trips);
+      syncTrip(trip.id);
     }
   } else {
     if(state._ticketAttachDraft){
@@ -5875,7 +6073,7 @@ function pickTicketPoint(segmentIndex, field, lat, lng, fullName){
       ticket.segments[segmentIndex][field] = sg[field];
       ticket.segments[segmentIndex][field + 'Lat'] = lat;
       ticket.segments[segmentIndex][field + 'Lng'] = lng;
-      DB.save(trips);
+      syncTrip(trip.id);
     }
   }
 
@@ -5896,7 +6094,7 @@ function clearTicketPoint(segmentIndex, field){
     if(ticket && ticket.segments && ticket.segments[segmentIndex]){
       ticket.segments[segmentIndex][field + 'Lat'] = null;
       ticket.segments[segmentIndex][field + 'Lng'] = null;
-      DB.save(trips);
+      syncTrip(trip.id);
     }
   }
 
@@ -6014,9 +6212,9 @@ function saveTicket(id){
       isPrepaid: true
     });
   }
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
 }
 function deleteTicket(id){
   if(!confirm('Удалить билет?')) return;
@@ -6028,9 +6226,9 @@ function deleteTicket(id){
   // Удаляем связанные места-билеты
   trip.activities = (trip.activities || []).filter(a => a.linkedTicketId !== id);
   trip.tickets = trip.tickets.filter(t => t.id !== id);
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
 }
 
 /* =============== БЮДЖЕТ =============== */
@@ -6205,16 +6403,16 @@ function saveMeName(){
   const name = document.getElementById('me-name').value.trim();
   if(!name){ alert('Введите имя'); return; }
   trip.me = name;
-  DB.save(trips); closeModal(); render();
+  closeModal(); render(); syncTrip(trip.id);
 }
 function saveBudgetEdit(){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   const total = parseFloat(document.getElementById('b-total').value);
   trip.budget.total = isNaN(total) ? 0 : total;
   trip.currency = document.getElementById('b-currency').value || 'RUB';
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
 }
 function openRatesModal(){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -6242,7 +6440,7 @@ function saveRates(){
     const unit = rateDisplayUnit(trip.currency);
     if(!isNaN(v) && v > 0) trip.rates[trip.currency] = v / unit;
   }
-  DB.save(trips); closeModal(); render();
+  closeModal(); render(); syncTrip(trip.id);
 }
 const CAT_COLORS = ['#2aabee','#34c759','#ff9500','#af52de','#ff2d55','#ff0000','#8e8e93','#00c7be','#5856d6','#ffcc00'];
 function openCategoryModal(id){ openAddCategoryModal(id); }
@@ -6284,13 +6482,13 @@ function saveCategory(id){
   } else {
     trip.budget.categories.push({ id:uid(), name, planned:plan, color });
   }
-  DB.save(trips); closeModal(); render();
+  closeModal(); render(); syncTrip(trip.id);
 }
 function deleteCategory(id){
   if(!confirm('Удалить категорию?')) return;
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   trip.budget.categories = trip.budget.categories.filter(c=>c.id!==id);
-  DB.save(trips); closeModal(); render();
+  closeModal(); render(); syncTrip(trip.id);
 }
 function openExpenseModal(id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -6335,7 +6533,7 @@ function saveExpense(id){
   } else {
     trip.budget.expenses.push({ id:uid(), title, amount, date, categoryId, note, paidBy, splitWith });
   }
-  DB.save(trips); closeModal(); render();
+  closeModal(); render(); syncTrip(trip.id);
 }
 async function deleteExpense(id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -6350,9 +6548,9 @@ async function deleteExpense(id){
   if(!linked){
     if(!confirm('Удалить трату?')) return;
     trip.budget.expenses = trip.budget.expenses.filter(x => x.id !== id);
-    DB.save(trips);
     closeModal();
     render();
+    syncTrip(trip.id);
     return;
   }
 
@@ -6399,7 +6597,7 @@ async function deleteExpense(id){
     trip.activities = trip.activities.filter(a => a.id !== linked.id);
   }
 
-  DB.save(trips);
+  syncTrip(trip.id);
   render();
 }
 function openSavingModal(id){
@@ -6426,13 +6624,13 @@ function saveSaving(id){
   } else {
     trip.budget.savings.push({ id:uid(), title, target, deadline, transactions:[] });
   }
-  DB.save(trips); closeModal(); render();
+  closeModal(); render(); syncTrip(trip.id);
 }
 function deleteSaving(id){
   if(!confirm('Удалить цель накопления?')) return;
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   trip.budget.savings = trip.budget.savings.filter(x=>x.id!==id);
-  DB.save(trips); render();
+  syncTrip(trip.id); render();
 }
 function openTopUpModal(savingId){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -6457,7 +6655,7 @@ function saveTopUp(savingId){
   const note = document.getElementById('t-note').value.trim();
   if(!s.transactions) s.transactions = [];
   s.transactions.push({ id:uid(), amount, date, note });
-  DB.save(trips); closeModal(); render();
+   closeModal(); render(); syncTrip(trip.id);
 }
 function openSavingHistory(savingId){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -6479,7 +6677,7 @@ function deleteTopUp(savingId, trId){
   const s = trip.budget.savings.find(x=>x.id===savingId);
   if(!s) return;
   s.transactions = (s.transactions||[]).filter(t=>t.id!==trId);
-  DB.save(trips);
+  syncTrip(trip.id);
   openSavingHistory(savingId);
   render();
 }
@@ -6634,9 +6832,9 @@ function saveActivity(){
   // Синхронизация с бюджетом
   syncActivityExpense(trip, activityId);
 
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
 }
 
 /* Синхронизирует трату в бюджете с параметрами места:
@@ -6709,9 +6907,9 @@ async function delActivity(id){
     if(!confirm(msg)) return;
     if(tk) tk.toPlan = false;
     trip.activities = trip.activities.filter(x => x.id !== id);
-    DB.save(trips);
     closeModal();
     render();
+    syncTrip(trip.id);
     return;
   }
 
@@ -6721,9 +6919,9 @@ async function delActivity(id){
   if(!linkedExpense){
     if(!confirm('Удалить это место?')) return;
     trip.activities = trip.activities.filter(x => x.id !== id);
-    DB.save(trips);
     closeModal();
     render();
+    syncTrip(trip.id);
     return;
   }
 
@@ -6765,9 +6963,9 @@ async function delActivity(id){
     trip.activities = trip.activities.filter(x => x.id !== id);
   }
 
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
 }
 function currentChecklistOwner(){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -6866,13 +7064,13 @@ function toggleChecklistItem(section, id){
   const item = trip.checklists[section].find(x=>x.id===id);
   if(!item) return;
   item.done = !item.done;
-  DB.save(trips);
+  syncTrip(trip.id);
   render();
 }
 function deleteChecklistItem(section, id){
   const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
   trip.checklists[section] = trip.checklists[section].filter(x=>x.id!==id);
-  DB.save(trips);
+  syncTrip(trip.id);
   render();
 }
 function attachChecklistSwipe(el){
@@ -6990,9 +7188,9 @@ function saveChecklistItem(id, originalSection){
   } else {
     trip.checklists[section].push({ id: uid(), done:false, ...data });
   }
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
 }
 function openCopyChecklistModal(){
   const current = ensureTrip(trips.find(t=>t.id===state.tripId));
@@ -7020,9 +7218,9 @@ function copyPackingFrom(sourceTripId){
     current.checklists.packing.push({ id: uid(), text: item.text || '', note: item.note || '', price: Number(item.price) || 0, done: false });
     added++;
   });
-  DB.save(trips);
   closeModal();
   render();
+  syncTrip(trip.id);
   setTimeout(()=> alert(`Добавлено пунктов: ${added}.`), 50);
 }
 
@@ -8208,9 +8406,19 @@ function doImport(mode, incoming){
     addedCount = added.length;
   }
 
-  DB.save(trips);
-  closeModal();
+    closeModal();
   render();
+
+  // Синхронизируем все поездки (только что добавленные)
+  if(sb && currentUser){
+    (async () => {
+      updateSyncStatus('syncing');
+      for(const t of trips){
+        try{ await cloudSaveTrip(t); }catch(e){ console.error('sync fail', t.id, e); }
+      }
+      updateSyncStatus('synced');
+    })();
+  }
 
   let msg = '';
   if(mode === 'replace')      msg = `Загружено: ${addedCount}.`;
@@ -8442,7 +8650,7 @@ async function pasteCoordsForTicket(segmentIndex, field){
       ticket.segments[segmentIndex][field] = sg[field];
       ticket.segments[segmentIndex][field + 'Lat'] = lat;
       ticket.segments[segmentIndex][field + 'Lng'] = lng;
-      DB.save(trips);
+      syncTrip(trip.id);
     }
   }
 
@@ -8588,7 +8796,7 @@ function migratePrepaidExpenses(){
     });
   });
   if(changed > 0){
-    DB.save(trips);
+    syncTrip(trip.id);
     console.log(`Миграция предоплат: помечено ${changed} трат.`);
   }
 }
@@ -8626,8 +8834,26 @@ function migratePrepaidExpenses(){
       }, 500);
     }
 
-    // 2b) Загружаем текущего пользователя
+        // 2b) Загружаем текущего пользователя
     await loadCurrentUser();
+
+    // Если залогинен — тянем поездки из облака
+    if(currentUser){
+      try{
+        const cloudTrips = await cloudLoadTrips();
+        if(cloudTrips.length){
+          trips = cloudTrips;
+          syncTrip(trip.id);
+        } else if(trips.length){
+          // В облаке пусто, но локально что-то есть — не мигрируем автоматически,
+          // спросим через диалог (как раньше)
+        }
+        updateSyncStatus('synced');
+      }catch(e){
+        console.error('Ошибка загрузки из облака:', e);
+        updateSyncStatus('error');
+      }
+    }
 
     // 2c) Подписываемся на изменения авторизации
     subscribeAuthChanges((event, session) => {
@@ -8654,7 +8880,7 @@ function migratePrepaidExpenses(){
   // 3) Старая логика — миграции, рендер
   trips.forEach(ensureTrip);
   migratePrepaidExpenses();
-  DB.save(trips);
+  syncTrip(trip.id);
   render();
 
   // 4) Если пользователь уже залогинен (сессия восстановлена из localStorage)
