@@ -8588,23 +8588,20 @@ function migratePrepaidExpenses(){
 })();
 
 /* =============== СТАРТ =============== */
+/* =============== СТАРТ =============== */
 (async function boot(){
   // 1) Инициализация Supabase
   const ok = initSupabase();
 
   // 2) Загрузка пользователя (если сессия есть)
   if(ok){
-    await loadCurrentUser();
-      if(ok){
-    // 1) Проверяем, не вернулся ли пользователь с ошибкой OAuth
+    // 2a) Проверяем, не вернулся ли пользователь с ошибкой OAuth
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const urlError = params.get('error') || hashParams.get('error');
     const urlErrorDesc = params.get('error_description') || hashParams.get('error_description');
     if(urlError){
-      // Чистим URL
       history.replaceState({}, '', window.location.pathname);
-      // Показываем ошибку после загрузки
       setTimeout(() => {
         if(urlError === 'access_denied'){
           showToast('Вы отменили вход через Google.');
@@ -8614,8 +8611,11 @@ function migratePrepaidExpenses(){
       }, 500);
     }
 
+    // 2b) Загружаем текущего пользователя
     await loadCurrentUser();
-        subscribeAuthChanges((event, session) => {
+
+    // 2c) Подписываемся на изменения авторизации
+    subscribeAuthChanges((event, session) => {
       if(event === 'SIGNED_OUT'){
         sessionStorage.removeItem('migration_asked');
         render();
@@ -8628,8 +8628,6 @@ function migratePrepaidExpenses(){
           }
         }
         render();
-        // Спросить про миграцию — с небольшой задержкой,
-        // чтобы UI успел отрисоваться
         setTimeout(() => askMigrateToCloud(), 800);
       }
       if(event === 'TOKEN_REFRESHED'){
@@ -8637,16 +8635,14 @@ function migratePrepaidExpenses(){
       }
     });
   }
-  }
 
-    // 3) Старая логика — миграции, рендер
+  // 3) Старая логика — миграции, рендер
   trips.forEach(ensureTrip);
   migratePrepaidExpenses();
   DB.save(trips);
   render();
 
   // 4) Если пользователь уже залогинен (сессия восстановлена из localStorage)
-  //    — предложить миграцию через 1 секунду
   if(currentUser){
     setTimeout(() => askMigrateToCloud(), 1000);
   }
