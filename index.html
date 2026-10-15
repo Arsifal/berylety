@@ -7,7 +7,7 @@
 <!-- PWA -->
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#0b6b3a" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Поездки" />
 <link rel="apple-touch-icon" href="icon.png" />
@@ -2278,10 +2278,11 @@ async function doSignOut(){
   state.tripId = null;
   state.tripTab = 'plan';
 
-  // Очищаем localStorage от поездок и очереди синхронизации
+    // Очищаем localStorage от поездок и очереди синхронизации
   try{
     localStorage.removeItem('trips');
     localStorage.removeItem(SYNC_QUEUE_KEY);
+    sessionStorage.removeItem('migration_asked');
   }catch(e){}
 
   // Очищаем IndexedDB с вложениями
@@ -3043,87 +3044,6 @@ window.addEventListener('online',  () => {
 window.addEventListener('offline', () => {
   updateSyncStatus('offline', { pending: loadSyncQueue().length });
 });
-
-/* Спрашивает у пользователя, переносить ли локальные поездки в облако.
-   Вызывается после входа в аккаунт, если локальные поездки есть. */
-async function askMigrateToCloud(force = false){
-  if(!sb || !currentUser) return;
-  if(!trips || !trips.length){
-    if(force) showToast('Локальных поездок нет');
-    return;
-  }
-
-  // Проверяем, есть ли уже данные в облаке
-  if(!force){
-    try{
-      const { data, error } = await sb
-        .from('trips')
-        .select('id')
-        .eq('user_id', currentUser.id)
-        .limit(1);
-      if(error) throw error;
-      if(data && data.length){
-        return;
-      }
-    }catch(e){
-      console.error('Не удалось проверить облако:', e);
-      return;
-    }
-  }
-
-    // Не показываем повторно в этой сессии (если не форсировано)
-  if(!force){
-    if(sessionStorage.getItem('migration_asked') === '1') return;
-    sessionStorage.setItem('migration_asked', '1');
-  }
-
-  const cnt = trips.length;
-  const word = cnt === 1 ? 'поездка' : (cnt < 5 ? 'поездки' : 'поездок');
-
-  openModal(`
-    <div class="modal-head">
-      <h3>Перенести в аккаунт?</h3>
-      <button class="btn-ghost" onclick="closeModal()">Позже</button>
-    </div>
-    <div class="modal-body">
-      <p style="margin:0;font-size:14.5px;line-height:1.55;color:var(--text)">
-        У вас <b>${cnt} ${word}</b> сохранено на этом устройстве.
-        Перенести их в ваш аккаунт, чтобы они были доступны на всех устройствах?
-      </p>
-      <p class="muted" style="margin:8px 0 0;font-size:13px;line-height:1.5">
-        Локальная копия останется на месте — на всякий случай. Если что-то пойдёт не так, данные не потеряются.
-      </p>
-    </div>
-    <div class="modal-foot">
-      <button class="btn" onclick="runMigration()" id="migrate-btn">Перенести ${cnt} ${word}</button>
-    </div>
-  `);
-}
-
-/* Выполняет миграцию локальных поездок в облако. */
-async function runMigration(){
-  if(!sb || !currentUser) return;
-  const btn = document.getElementById('migrate-btn');
-  if(btn){
-    btn.disabled = true;
-    btn.textContent = 'Переношу…';
-  }
-
-  let done = 0;
-  const total = trips.length;
-  try{
-    for(const trip of trips){
-      await cloudSaveTrip(trip);
-      done++;
-      if(btn) btn.textContent = `Переношу… ${done}/${total}`;
-    }
-    closeModal();
-    showToast(`✓ Перенесено поездок: ${done}`, 5000);
-  }catch(e){
-    console.error('Ошибка миграции:', e);
-    showToast(`Ошибка переноса после ${done} из ${total}: ${e.message || 'неизвестно'}`, 7000);
-  }
-}
 
 /* =============== ТЕМЫ =============== */
 const THEMES = [
@@ -8978,7 +8898,6 @@ function migratePrepaidExpenses(){
     // 2d) Подписка на изменения авторизации
     subscribeAuthChanges(async (event, session) => {
       if(event === 'SIGNED_OUT'){
-        sessionStorage.removeItem('migration_asked');
         currentUser = null;
         trips = [];
         render();
