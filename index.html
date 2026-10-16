@@ -1903,6 +1903,145 @@ html{
     padding: 0;
     font-size: 13.5px;
   }
+
+    /* =========================================================
+     НАПОМИНАНИЯ
+     ========================================================= */
+
+  /* Бейдж на иконке 🔔 */
+  #bell-btn{ position: relative; }
+  .bell-badge{
+    position: absolute;
+    top: 2px;
+    right: 0;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    border-radius: 999px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    pointer-events: none;
+  }
+
+  /* Заголовки секций в модалке */
+  .reminders-section-title{
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 4px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .reminders-section-title .counter{
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+    background: var(--bg-soft);
+    padding: 1px 8px;
+    border-radius: 999px;
+  }
+
+  /* Список напоминаний */
+  .reminders-list{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .reminder-row{
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .reminder-row:hover{ background: var(--bg-soft); }
+  .reminder-row:active{ background: var(--bg-soft); }
+  .reminder-row.past{
+    border-left: 3px solid var(--warn);
+  }
+  .reminder-row.dismissed{
+    opacity: .55;
+  }
+
+  .reminder-row-main{ display: flex; flex-direction: column; gap: 4px; }
+
+  .reminder-row-text{
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .reminder-row.dismissed .reminder-row-text{
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+  .reminder-row-note{
+    font-size: 13px;
+    color: var(--muted);
+    word-break: break-word;
+  }
+  .reminder-row-meta{
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .reminder-actions{
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .reminder-actions .btn-mini{
+    flex: 1;
+    background: var(--bg-soft);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12.5px;
+    font-family: inherit;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .reminder-actions .btn-mini:active{ background: var(--border); }
+
+  /* Пустое состояние */
+  .reminders-empty{
+    padding: 20px 14px;
+    color: var(--muted);
+    font-size: 13.5px;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* Чекбокс «Показать выполненные» */
+  .reminders-toggle{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 0;
+    font-size: 13.5px;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .reminders-toggle input{
+    width: auto;
+    margin: 0;
+  }
 </style>
 </head>
 <body>
@@ -2215,6 +2354,95 @@ async function doGoogleSignIn(){
   }
 }
 
+/* Обновляет бейдж на иконке 🔔: показывает количество
+   «созревших» напоминаний (at <= now, !dismissed). */
+function updateBellBadge(){
+  const btn = document.getElementById('bell-btn');
+  if(!btn) return;
+  const count = countDueReminders();
+  // Убираем старый бейдж, если был
+  const old = btn.querySelector('.bell-badge');
+  if(old) old.remove();
+  if(count > 0){
+    const badge = document.createElement('span');
+    badge.className = 'bell-badge';
+    badge.textContent = count > 9 ? '9+' : String(count);
+    btn.appendChild(badge);
+  }
+}
+
+/* Считает количество «созозревших» напоминаний по всем поездкам. */
+function countDueReminders(){
+  const now = Date.now();
+  let count = 0;
+  (trips || []).forEach(trip => {
+    (trip.reminders || []).forEach(r => {
+      if(r.dismissed) return;
+      if(!r.at) return;
+      if(new Date(r.at).getTime() <= now) count++;
+    });
+  });
+  return count;
+}
+
+/* Возвращает список всех «созревших» напоминаний с привязкой к поездке. */
+function collectDueReminders(){
+  const now = Date.now();
+  const out = [];
+  (trips || []).forEach(trip => {
+    (trip.reminders || []).forEach(r => {
+      if(r.dismissed) return;
+      if(!r.at) return;
+      if(new Date(r.at).getTime() <= now){
+        out.push({ trip, reminder: r });
+      }
+    });
+  });
+  // Сортируем по времени — сначала самые ранние
+  out.sort((a, b) => new Date(a.reminder.at) - new Date(b.reminder.at));
+  return out;
+}
+
+/* Возвращает список всех будущих напоминаний + выполненных, если showDismissed. */
+function collectAllReminders(showDismissed){
+  const now = Date.now();
+  const out = [];
+  (trips || []).forEach(trip => {
+    (trip.reminders || []).forEach(r => {
+      const isDue = r.at && new Date(r.at).getTime() <= now;
+      if(r.dismissed && !showDismissed) return;
+      // Созревшие и невыполненные не показываем в «Ближайших» — они в «Созревших»
+      if(isDue && !r.dismissed) return;
+      out.push({ trip, reminder: r, isDue });
+    });
+  });
+  // Сортируем по времени
+  out.sort((a, b) => {
+    const ta = a.reminder.at ? new Date(a.reminder.at).getTime() : 0;
+    const tb = b.reminder.at ? new Date(b.reminder.at).getTime() : 0;
+    return ta - tb;
+  });
+  return out;
+}
+
+/* Форматирует «at» в человекочитаемое «Сегодня, 14:00», «Завтра, 09:30»,
+   «12 окт, 18:00» и т.п. */
+function fmtReminderAt(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((target - today) / 86400000);
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if(diffDays === 0) return `Сегодня, ${time}`;
+  if(diffDays === 1) return `Завтра, ${time}`;
+  if(diffDays === -1) return `Вчера, ${time}`;
+  if(diffDays > 1 && diffDays <= 7) return `Через ${diffDays} дн., ${time}`;
+  const date = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  return `${date}, ${time}`;
+}
+
 /* Меню профиля пользователя. */
 function openProfileMenu(){
   if(!currentUser){
@@ -2260,6 +2488,149 @@ function openProfileMenu(){
       </p>
     </div>
   `);
+}
+
+/* Модалка со списком всех напоминаний: созревшие + ближайшие + прошедшие. */
+let _remindersShowDismissed = false;
+
+function openRemindersModal(){
+  if(!currentUser){
+    openAuthModal();
+    return;
+  }
+
+  const due = collectDueReminders();
+  const all = collectAllReminders(_remindersShowDismissed);
+
+  const renderReminderRow = (item, isDueSection) => {
+    const { trip, reminder } = item;
+    const at = fmtReminderAt(reminder.at);
+    const isPast = reminder.at && new Date(reminder.at).getTime() < Date.now();
+    const actions = isDueSection
+      ? `<div class="reminder-actions">
+           <button class="btn-mini" onclick="event.stopPropagation();dismissReminder('${trip.id}','${reminder.id}')">Понятно</button>
+           <button class="btn-mini" onclick="event.stopPropagation();snoozeReminder('${trip.id}','${reminder.id}')">Отложить на час</button>
+         </div>`
+      : (reminder.dismissed
+          ? `<div class="reminder-actions">
+               <button class="btn-mini" onclick="event.stopPropagation();undismissReminder('${trip.id}','${reminder.id}')">Вернуть</button>
+             </div>`
+          : '');
+    return `
+      <div class="reminder-row ${isPast ? 'past' : ''} ${reminder.dismissed ? 'dismissed' : ''}"
+           onclick="openReminderModal('${trip.id}','${reminder.id}')">
+        <div class="reminder-row-main">
+          <div class="reminder-row-text">${esc(reminder.text || 'Без текста')}</div>
+          ${reminder.note ? `<div class="reminder-row-note">${esc(reminder.note)}</div>` : ''}
+          <div class="reminder-row-meta">
+            🕒 ${esc(at)} · <span class="muted">${esc(trip.title)}</span>
+          </div>
+          ${actions}
+        </div>
+      </div>
+    `;
+  };
+
+  openModal(`
+    <div class="modal-head">
+      <h3>🔔 Напоминания</h3>
+      <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
+    </div>
+    <div class="modal-body">
+      ${due.length ? `
+        <div class="reminders-section-title">Созревшие (${due.length})</div>
+        <div class="reminders-list">
+          ${due.map(item => renderReminderRow(item, true)).join('')}
+        </div>
+      ` : ''}
+
+      <div class="reminders-section-title">
+        ${due.length ? 'Ближайшие' : 'Все напоминания'}
+        ${all.length ? `<span class="counter">${all.length}</span>` : ''}
+      </div>
+
+      ${all.length ? `
+        <div class="reminders-list">
+          ${all.map(item => renderReminderRow(item, false)).join('')}
+        </div>
+      ` : `
+        <div class="reminders-empty">
+          ${due.length ? 'Созревших больше нет.' : 'Пока нет напоминаний. Добавьте первое — нажмите «+ Добавить» ниже.'}
+        </div>
+      `}
+
+      <label class="reminders-toggle">
+        <input type="checkbox" ${_remindersShowDismissed ? 'checked' : ''}
+               onchange="_remindersShowDismissed = this.checked; openRemindersModal();" />
+        Показать выполненные
+      </label>
+
+      <button class="btn" onclick="openReminderModal()" style="margin-top:8px">
+        + Добавить напоминание
+      </button>
+    </div>
+  `);
+
+  // Обновляем бейдж после открытия
+  updateBellBadge();
+}
+
+/* Помечает напоминание как выполненное. */
+function dismissReminder(tripId, reminderId){
+  const trip = trips.find(t => t.id === tripId);
+  if(!trip) return;
+  const r = (trip.reminders || []).find(x => x.id === reminderId);
+  if(!r) return;
+  r.dismissed = true;
+  r.dismissedAt = new Date().toISOString();
+  syncTrip(tripId);
+  updateBellBadge();
+  openRemindersModal();
+}
+
+/* Возвращает напоминание в активное состояние (для «выполненных»). */
+function undismissReminder(tripId, reminderId){
+  const trip = trips.find(t => t.id === tripId);
+  if(!trip) return;
+  const r = (trip.reminders || []).find(x => x.id === reminderId);
+  if(!r) return;
+  r.dismissed = false;
+  r.dismissedAt = null;
+  syncTrip(tripId);
+  updateBellBadge();
+  openRemindersModal();
+}
+
+/* Откладывает напоминание на час вперёд. */
+function snoozeReminder(tripId, reminderId){
+  const trip = trips.find(t => t.id === tripId);
+  if(!trip) return;
+  const r = (trip.reminders || []).find(x => x.id === reminderId);
+  if(!r) return;
+  const base = r.at ? new Date(r.at).getTime() : Date.now();
+  const newTime = Math.max(base, Date.now()) + 3600000;
+  r.at = new Date(newTime).toISOString();
+  syncTrip(tripId);
+  updateBellBadge();
+  openRemindersModal();
+}
+
+/* Заглушка. Настоящая модалка будет в следующем патче. */
+function openReminderModal(tripId, reminderId){
+  closeModal();
+  setTimeout(() => {
+    openModal(`
+      <div class="modal-head">
+        <h3>🔔 Напоминание</h3>
+        <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted" style="margin:0;font-size:14px;line-height:1.55">
+          Форма создания и редактирования напоминаний появится в следующем обновлении.
+        </p>
+      </div>
+    `);
+  }, 150);
 }
 
 /* Выход из аккаунта. */
@@ -4290,9 +4661,10 @@ function renderList(){
   const noResults = !isEmpty && list.length === 0;
 
   app.innerHTML = `
-    <header>
+        <header>
       <h1>✈️ Мои поездки</h1>
       <span class="icon-btn" id="sync-indicator" style="display:none" onclick="processSyncQueue()" title="Синхронизация">☁️</span>
+      <button class="icon-btn" id="bell-btn" onclick="openRemindersModal()" title="Напоминания">🔔</button>
       <button class="icon-btn user-btn" onclick="openProfileMenu()" title="${esc(currentUser.email||'Профиль')}">
         ${avatarHtml(currentUser)}
       </button>
@@ -4328,6 +4700,7 @@ function renderList(){
     si.setSelectionRange(si.value.length, si.value.length);
   }
   renderSyncIndicator();
+  updateBellBadge();
 }
 function groupBlock(g){
   const collapsed = !!state.collapsed[g.key];
@@ -4532,6 +4905,7 @@ function renderTrip(){
             <button class="back" onclick="goBack()">‹</button>
       <h1>${esc(trip.title)}</h1>
       <span class="icon-btn" id="sync-indicator" style="display:none" onclick="processSyncQueue()" title="Синхронизация">☁️</span>
+      <button class="icon-btn" id="bell-btn" onclick="openRemindersModal()" title="Напоминания">🔔</button>
       <button class="icon-btn" onclick="openTripMenu()" title="Меню поездки">⋯</button>
       <button class="icon-btn" onclick="toggleTheme()" title="Следующая: ${themeLabel()}">${themeIcon()}</button>
     </header>
@@ -4548,8 +4922,9 @@ function renderTrip(){
     <button class="btn fab" id="trip-fab" onclick="">+</button>
   `;
 
-  renderTripTabContent(trip);
+    renderTripTabContent(trip);
   updateTripFab(trip);
+  updateBellBadge();
 
   // Прокрутим вкладки так, чтобы активная была видна
   requestAnimationFrame(()=>{
