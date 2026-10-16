@@ -2585,9 +2585,70 @@ function cloudDecomposeChecklists(trip, uid){
   return out;
 }
 
-/* Отправляет одну поездку в облако целиком.
-   Сначала удаляет старые записи (по trip_id), потом вставляет новые
-   в строгом порядке, чтобы не нарушать foreign keys. */
+/* Сравнивает два массива объектов по полю id.
+   Возвращает { toInsert, toUpdate, toDelete }.
+   - toInsert: есть в local, нет в cloud
+   - toUpdate: есть в обоих (сравниваем по updated_at, чтобы не гонять зря)
+   - toDelete: есть в cloud, нет в local
+*/
+function diffById(localArr, cloudArr){
+  const localIds = new Set(localArr.map(x => x.id));
+  const cloudIds = new Set(cloudArr.map(x => x.id));
+
+  const toInsert = localArr.filter(x => !cloudIds.has(x.id));
+  const toDelete = cloudArr.filter(x => !localIds.has(x.id));
+
+  // Обновлять будем только те строки, у которых updated_at изменился
+  // или которых мы не знаем когда обновляли
+  const cloudById = {};
+  cloudArr.forEach(x => { cloudById[x.id] = x; });
+
+  const toUpdate = localArr.filter(x => {
+    const c = cloudById[x.id];
+    if(!c) return false;
+    // Если в локальной версии updated_at новее — обновляем
+    // Если у облачной нет updated_at — обновляем на всякий случай
+    if(!c.updated_at) return true;
+    const localTs = x.updated_at || 0;
+    return new Date(localTs).getTime() >= new Date(c.updated_at).getTime();
+  });
+
+  return { toInsert, toUpdate, toDelete };
+}
+
+/* Тянет из облака ID + updated_at для указанной таблицы и trip_id. */
+async function fetchCloudIds(table, tripId, uid){
+  const { data, error } = await sb
+    .from(table)
+    .select('id, updated_at')
+    .eq('trip_id', tripId)
+    .eq('user_id', uid);
+  if(error){
+    // Таблица может не иметь updated_at — тогда пробуем без него
+    const fallback = await sb.from(table).select('id').eq('trip_id', tripId).eq('user_id', uid);
+    if(fallback.error) throw fallback.error;
+    return (fallback.data || []).map(x => ({ id: x.id, updated_at: null }));
+  }
+  return data || [];
+}
+
+/* То же для ticket_segments — но у них нет updated_at и фильтр по ticket_id. */
+async function fetchCloudSegmentsIds(ticketIds){
+  if(!ticketIds.length) return [];
+  const { data, error } = await sb
+    .from('ticket_segments')
+    .select('id, ticket_id')
+    .in('ticket_id', ticketIds);
+  if(error) throw error;
+  return data || [];
+}
+
+/* Отправляет одну поездку в облако. Инкрементально:
+   - inserts только новых строк
+   - updates только изменённых
+   - deletes только пропавших
+   Это в разы быстрее, чем удалять и вставлять всё заново.
+*/
 async function cloudSaveTrip(trip){
   if(!sb || !currentUser) throw new Error('Не авторизован');
   const uid = currentUser.id;
@@ -2598,30 +2659,17 @@ async function cloudSaveTrip(trip){
   const bParts = cloudDecomposeBudget(trip, uid, now);
   const clItems = cloudDecomposeChecklists(trip, uid);
 
-  const tripRow       = parts.trip;
-  const activities    = parts.activities;
-  const lodging       = parts.lodging;
-  const tickets       = tkParts.tickets;
-  const segments      = tkParts.segments;
-  const expenses      = bParts.expenses;
-  const categories    = bParts.categories;
-  const savings       = bParts.savings;
-  const savingsTx     = bParts.savings_tx;
+  const tripRow    = parts.trip;
+  const activities = parts.activities;
+  const lodging    = parts.lodging;
+  const tickets    = tkParts.tickets;
+  const segments   = tkParts.segments;
+  const expenses   = bParts.expenses;
+  const categories = bParts.categories;
+  const savings    = bParts.savings;
+  const savingsTx  = bParts.savings_tx;
 
-  // 1) Удаляем старые данные этой поездки
-  //    (кроме trips — его обновим через upsert).
-  //    Сегменты и savings_transactions удаляются каскадом.
-  await Promise.all([
-    sb.from('activities').delete().eq('trip_id', trip.id).eq('user_id', uid),
-    sb.from('lodging').delete().eq('trip_id', trip.id).eq('user_id', uid),
-    sb.from('tickets').delete().eq('trip_id', trip.id).eq('user_id', uid),
-    sb.from('expenses').delete().eq('trip_id', trip.id).eq('user_id', uid),
-    sb.from('categories').delete().eq('trip_id', trip.id).eq('user_id', uid),
-    sb.from('savings').delete().eq('trip_id', trip.id).eq('user_id', uid),
-    sb.from('checklists').delete().eq('trip_id', trip.id).eq('user_id', uid)
-  ]);
-
-  // Хелпер: проверяет результат и бросает ошибку при проблеме.
+  // Хелпер для проверки ответа
   function ensure(res, label){
     if(res && res.error){
       throw new Error(`${label}: ${res.error.message || res.error}`);
@@ -2629,32 +2677,123 @@ async function cloudSaveTrip(trip){
     return res;
   }
 
-  // 2) Вставляем по порядку с учётом FK
-
-  // 2a) trips
+  // 1) Сама поездка — upsert
   ensure(await sb.from('trips').upsert(tripRow), 'trips upsert');
 
-  // 2b) activities, lodging, categories, checklists — не зависят друг от друга
-  if(activities.length) ensure(await sb.from('activities').insert(activities), 'activities insert');
-  if(lodging.length)    ensure(await sb.from('lodging').insert(lodging),       'lodging insert');
-  if(categories.length) ensure(await sb.from('categories').insert(categories), 'categories insert');
-  if(expenses.length)   ensure(await sb.from('expenses').insert(expenses),     'expenses insert');
-  if(clItems.length)    ensure(await sb.from('checklists').insert(clItems),    'checklists insert');
+  // 2) Параллельно тянем облачные ID для всех таблиц
+  const [
+    cloudActivities, cloudLodging, cloudTickets,
+    cloudExpenses, cloudCategories, cloudSavings,
+    cloudChecklists
+  ] = await Promise.all([
+    fetchCloudIds('activities', trip.id, uid),
+    fetchCloudIds('lodging', trip.id, uid),
+    fetchCloudIds('tickets', trip.id, uid),
+    fetchCloudIds('expenses', trip.id, uid),
+    fetchCloudIds('categories', trip.id, uid),
+    fetchCloudIds('savings', trip.id, uid),
+    fetchCloudIds('checklists', trip.id, uid)
+  ]);
 
-  // 2c) tickets, ПОТОМ ticket_segments (FK ticket_id → tickets.id)
-  if(tickets.length){
-    ensure(await sb.from('tickets').insert(tickets), 'tickets insert');
-  }
-  if(segments.length){
-    ensure(await sb.from('ticket_segments').insert(segments), 'ticket_segments insert');
+  // Сегменты — привязаны к tickets, а не к trips
+  const cloudTicketIds = cloudTickets.map(t => t.id);
+  const cloudSegments = await fetchCloudSegmentsIds(cloudTicketIds);
+
+  // Накопления-транзакции — привязаны к savings
+  const cloudSavingIds = cloudSavings.map(s => s.id);
+  let cloudSavingsTx = [];
+  if(cloudSavingIds.length){
+    const r = await sb.from('savings_transactions').select('id, saving_id').in('saving_id', cloudSavingIds);
+    if(r.error) throw r.error;
+    cloudSavingsTx = r.data || [];
   }
 
-  // 2d) savings, ПОТОМ savings_transactions (FK saving_id → savings.id)
-  if(savings.length){
-    ensure(await sb.from('savings').insert(savings), 'savings insert');
+  // 3) Считаем diff для каждой таблицы
+  const dActs   = diffById(activities, cloudActivities);
+  const dLodge  = diffById(lodging,    cloudLodging);
+  const dTix    = diffById(tickets,    cloudTickets);
+  const dExp    = diffById(expenses,   cloudExpenses);
+  const dCat    = diffById(categories, cloudCategories);
+  const dSav    = diffById(savings,    cloudSavings);
+  const dCl     = diffById(clItems,    cloudChecklists);
+
+  // Для segments — ключ ticket_id, а не trip_id
+  const localSegIds = new Set(segments.map(s => s.id));
+  const cloudSegIds = new Set(cloudSegments.map(s => s.id));
+  const segToInsert = segments.filter(s => !cloudSegIds.has(s.id));
+  const segToDeleteIds = cloudSegments.filter(s => !localSegIds.has(s.id)).map(s => s.id);
+
+  // Для savings_transactions — ключ saving_id
+  const localTxIds = new Set(savingsTx.map(t => t.id));
+  const cloudTxIds = new Set(cloudSavingsTx.map(t => t.id));
+  const txToInsert = savingsTx.filter(t => !cloudTxIds.has(t.id));
+  const txToDeleteIds = cloudSavingsTx.filter(t => !localTxIds.has(t.id)).map(t => t.id);
+
+  // 4) Применяем изменения. Порядок важен из-за FK:
+  //    categories → expenses (categoryId)
+  //    tickets → ticket_segments
+  //    savings → savings_transactions
+
+  // 4.1. Категории
+  if(dCat.toInsert.length) ensure(await sb.from('categories').insert(dCat.toInsert), 'categories insert');
+  if(dCat.toUpdate.length) ensure(await sb.from('categories').upsert(dCat.toUpdate), 'categories update');
+  if(dCat.toDelete.length) {
+    const ids = dCat.toDelete.map(x => x.id);
+    ensure(await sb.from('categories').delete().in('id', ids), 'categories delete');
   }
-  if(savingsTx.length){
-    ensure(await sb.from('savings_transactions').insert(savingsTx), 'savings_transactions insert');
+
+  // 4.2. Активности
+  if(dActs.toInsert.length) ensure(await sb.from('activities').insert(dActs.toInsert), 'activities insert');
+  if(dActs.toUpdate.length) ensure(await sb.from('activities').upsert(dActs.toUpdate), 'activities update');
+  if(dActs.toDelete.length) {
+    const ids = dActs.toDelete.map(x => x.id);
+    ensure(await sb.from('activities').delete().in('id', ids), 'activities delete');
+  }
+
+  // 4.3. Жильё
+  if(dLodge.toInsert.length) ensure(await sb.from('lodging').insert(dLodge.toInsert), 'lodging insert');
+  if(dLodge.toUpdate.length) ensure(await sb.from('lodging').upsert(dLodge.toUpdate), 'lodging update');
+  if(dLodge.toDelete.length) {
+    const ids = dLodge.toDelete.map(x => x.id);
+    ensure(await sb.from('lodging').delete().in('id', ids), 'lodging delete');
+  }
+
+  // 4.4. Билеты — сначала, потом сегменты
+  if(dTix.toInsert.length) ensure(await sb.from('tickets').insert(dTix.toInsert), 'tickets insert');
+  if(dTix.toUpdate.length) ensure(await sb.from('tickets').upsert(dTix.toUpdate), 'tickets update');
+  if(dTix.toDelete.length) {
+    const ids = dTix.toDelete.map(x => x.id);
+    ensure(await sb.from('tickets').delete().in('id', ids), 'tickets delete');
+  }
+
+  // 4.5. Сегменты — после билетов
+  if(segToInsert.length) ensure(await sb.from('ticket_segments').insert(segToInsert), 'segments insert');
+  if(segToDeleteIds.length) ensure(await sb.from('ticket_segments').delete().in('id', segToDeleteIds), 'segments delete');
+
+  // 4.6. Траты — после категорий
+  if(dExp.toInsert.length) ensure(await sb.from('expenses').insert(dExp.toInsert), 'expenses insert');
+  if(dExp.toUpdate.length) ensure(await sb.from('expenses').upsert(dExp.toUpdate), 'expenses update');
+  if(dExp.toDelete.length) {
+    const ids = dExp.toDelete.map(x => x.id);
+    ensure(await sb.from('expenses').delete().in('id', ids), 'expenses delete');
+  }
+
+  // 4.7. Накопления — потом транзакции
+  if(dSav.toInsert.length) ensure(await sb.from('savings').insert(dSav.toInsert), 'savings insert');
+  if(dSav.toUpdate.length) ensure(await sb.from('savings').upsert(dSav.toUpdate), 'savings update');
+  if(dSav.toDelete.length) {
+    const ids = dSav.toDelete.map(x => x.id);
+    ensure(await sb.from('savings').delete().in('id', ids), 'savings delete');
+  }
+  if(txToInsert.length) ensure(await sb.from('savings_transactions').insert(txToInsert), 'savings_tx insert');
+  if(txToDeleteIds.length) ensure(await sb.from('savings_transactions').delete().in('id', txToDeleteIds), 'savings_tx delete');
+
+  // 4.8. Чек-листы
+  if(dCl.toInsert.length) ensure(await sb.from('checklists').insert(dCl.toInsert), 'checklists insert');
+  if(dCl.toUpdate.length) ensure(await sb.from('checklists').upsert(dCl.toUpdate), 'checklists update');
+  if(dCl.toDelete.length) {
+    const ids = dCl.toDelete.map(x => x.id);
+    ensure(await sb.from('checklists').delete().in('id', ids), 'checklists delete');
   }
 }
 
@@ -2943,31 +3082,67 @@ function dequeueSync(tripId){
 /* ---------- Главная функция синхронизации одной поездки ---------- */
 /* Вызывается после каждого изменения поездки в UI.
    Гарантирует: локально всегда сохранено; в облако — по возможности. */
-async function syncTrip(tripId){
+/* Список tripId, которые ждут отправки. Склеиваем частые вызовы. */
+const _syncPending = new Set();
+let _syncTimer = null;
+const SYNC_DEBOUNCE_MS = 800;
+
+/* Вызывается сразу после каждого изменения поездки в UI.
+   Локально сохраняет всегда. В облако отправляет с задержкой
+   и только один раз на поездку, даже если вызвали 10 раз за секунду. */
+function syncTrip(tripId){
   const trip = trips.find(t => t.id === tripId);
   if(!trip) return;
 
-  // 1) Локально — всегда
+  // 1) Локально — всегда и сразу
   DB.save(trips);
 
   // 2) Без аккаунта — синхронизировать некуда
   if(!sb || !currentUser) return;
 
-  // 3) Без сети — в очередь
+  // 3) Помечаем как «грязный» и запускаем таймер
+  _syncPending.add(tripId);
+
+  if(_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(flushSyncPending, SYNC_DEBOUNCE_MS);
+}
+
+/* Отправляет все накопленные tripId в облако. */
+async function flushSyncPending(){
+  const ids = Array.from(_syncPending);
+  _syncPending.clear();
+  _syncTimer = null;
+  if(!ids.length) return;
+
+  if(!sb || !currentUser) return;
+
+  // Если офлайн — в очередь
   if(!navigator.onLine){
-    enqueueSync({ type: 'upsert', tripId, ts: Date.now() });
+    for(const id of ids){
+      enqueueSync({ type: 'upsert', tripId: id, ts: Date.now() });
+    }
     return;
   }
 
-  // 4) Есть сеть и аккаунт — синхронизируем
   updateSyncStatus('syncing');
-  try{
-    await cloudSaveTrip(trip);
-    dequeueSync(tripId);
+  let failedCount = 0;
+
+  for(const id of ids){
+    const trip = trips.find(t => t.id === id);
+    if(!trip) continue;
+    try{
+      await cloudSaveTrip(trip);
+      dequeueSync(id);
+    }catch(e){
+      console.error('Ошибка синхронизации поездки:', e);
+      enqueueSync({ type: 'upsert', tripId: id, ts: Date.now() });
+      failedCount++;
+    }
+  }
+
+  if(failedCount === 0){
     updateSyncStatus('synced', { pending: loadSyncQueue().length });
-  }catch(e){
-    console.error('Ошибка синхронизации поездки:', e);
-    enqueueSync({ type: 'upsert', tripId, ts: Date.now() });
+  } else {
     updateSyncStatus('error', { pending: loadSyncQueue().length });
   }
 }
