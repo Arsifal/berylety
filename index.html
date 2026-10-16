@@ -2552,6 +2552,29 @@ function cloudDecomposeBudget(trip, uid, now){
   return { expenses, categories, savings, savings_tx };
 }
 
+/* Собирает массив reminders для отправки в Supabase. */
+function cloudDecomposeReminders(trip, uid){
+  const out = [];
+  (trip.reminders || []).forEach(r => {
+    out.push({
+      id: r.id,
+      user_id: uid,
+      trip_id: trip.id,
+      text: r.text || '',
+      note: r.note || '',
+      mode: r.mode || 'absolute',
+      at: r.at || null,
+      anchor_type: r.anchorType || null,
+      anchor_id: r.anchorId || null,
+      offset_min: (typeof r.offsetMin === 'number') ? r.offsetMin : null,
+      dismissed: !!r.dismissed,
+      dismissed_at: r.dismissedAt || null,
+      updated_at: new Date().toISOString()
+    });
+  });
+  return out;
+}
+
 /* Собирает чек-листы (packing + shopping) в одну таблицу. */
 function cloudDecomposeChecklists(trip, uid){
   const out = [];
@@ -2657,14 +2680,15 @@ async function replaceLocalTripWithCloud(tripId){
   if(tErr) throw tErr;
 
   // Тянем вложенные
-  const [
+    const [
     { data: acts },
     { data: lodge },
     { data: tickets },
     { data: expenses },
     { data: categories },
     { data: savings },
-    { data: checklists }
+    { data: checklists },
+    { data: reminders }
   ] = await Promise.all([
     sb.from('activities').select('*').eq('trip_id', tripId),
     sb.from('lodging').select('*').eq('trip_id', tripId),
@@ -2672,7 +2696,8 @@ async function replaceLocalTripWithCloud(tripId){
     sb.from('expenses').select('*').eq('trip_id', tripId),
     sb.from('categories').select('*').eq('trip_id', tripId),
     sb.from('savings').select('*').eq('trip_id', tripId),
-    sb.from('checklists').select('*').eq('trip_id', tripId)
+    sb.from('checklists').select('*').eq('trip_id', tripId),
+    sb.from('reminders').select('*').eq('trip_id', tripId)
   ]);
 
   // Сегменты
@@ -2761,6 +2786,18 @@ async function replaceLocalTripWithCloud(tripId){
         arriveDate: sg.arrive_date || '', arriveTime: sg.arrive_time || '',
         carrier: sg.carrier || '', number: sg.number || '', seat: sg.seat || ''
       }))
+    })),
+    reminders: (reminders || []).map(r => ({
+      id: r.id,
+      text: r.text || '',
+      note: r.note || '',
+      mode: r.mode || 'absolute',
+      at: r.at || null,
+      anchorType: r.anchor_type || null,
+      anchorId: r.anchor_id || null,
+      offsetMin: (typeof r.offset_min === 'number') ? r.offset_min : null,
+      dismissed: !!r.dismissed,
+      dismissedAt: r.dismissed_at || null
     })),
     budget: {
       total: t.budget_total || 0,
@@ -2887,10 +2924,11 @@ async function cloudSaveTrip(trip){
   const uid = currentUser.id;
   const now = new Date().toISOString();
 
-  const parts = cloudDecomposeTrip(trip);
+    const parts = cloudDecomposeTrip(trip);
   const tkParts = cloudDecomposeTickets(trip, uid, now);
   const bParts = cloudDecomposeBudget(trip, uid, now);
   const clItems = cloudDecomposeChecklists(trip, uid);
+  const reminders = cloudDecomposeReminders(trip, uid);
 
   const tripRow    = parts.trip;
   const activities = parts.activities;
@@ -3029,6 +3067,17 @@ async function cloudSaveTrip(trip){
     ensure(await sb.from('checklists').delete().in('id', ids), 'checklists delete');
   }
 
+   // 4.9. Напоминания
+  const cloudReminders = await fetchCloudIds('reminders', trip.id, uid);
+  const dRem = diffById(reminders, cloudReminders);
+
+  if(dRem.toInsert.length) ensure(await sb.from('reminders').insert(dRem.toInsert), 'reminders insert');
+  if(dRem.toUpdate.length) ensure(await sb.from('reminders').upsert(dRem.toUpdate), 'reminders update');
+  if(dRem.toDelete.length) {
+    const ids = dRem.toDelete.map(x => x.id);
+    ensure(await sb.from('reminders').delete().in('id', ids), 'reminders delete');
+  }
+
   // Запоминаем, когда последний раз успешно синхронизировали
   trip._lastSyncedAt = now;
 }
@@ -3051,7 +3100,7 @@ async function cloudLoadTrips(){
   const tripIds = tripsData.map(t => t.id);
 
   // 2) Параллельно тянем все вложенные таблицы
-  const [
+    const [
     { data: actsData },
     { data: lodgeData },
     { data: ticketsData },
@@ -3060,7 +3109,8 @@ async function cloudLoadTrips(){
     { data: categoriesData },
     { data: savingsData },
     { data: savingsTxData },
-    { data: clData }
+    { data: clData },
+    { data: remData }
   ] = await Promise.all([
     sb.from('activities').select('*').in('trip_id', tripIds),
     sb.from('lodging').select('*').in('trip_id', tripIds),
@@ -3070,13 +3120,14 @@ async function cloudLoadTrips(){
     sb.from('categories').select('*').in('trip_id', tripIds),
     sb.from('savings').select('*').in('trip_id', tripIds),
     sb.from('savings_transactions').select('*').in('saving_id', (await sb.from('savings').select('id').in('trip_id', tripIds)).data?.map(s => s.id) || []),
-    sb.from('checklists').select('*').in('trip_id', tripIds)
+    sb.from('checklists').select('*').in('trip_id', tripIds),
+    sb.from('reminders').select('*').in('trip_id', tripIds)
   ]);
 
   // 3) Индексируем по trip_id
   const idx = {};
   tripIds.forEach(id => {
-    idx[id] = { acts: [], lodge: [], tickets: [], expenses: [], categories: [], savings: [], cl: [] };
+    idx[id] = { acts: [], lodge: [], tickets: [], expenses: [], categories: [], savings: [], cl: [], rem: [] };
   });
   (actsData || []).forEach(x => idx[x.trip_id]?.acts.push(x));
   (lodgeData || []).forEach(x => idx[x.trip_id]?.lodge.push(x));
@@ -3085,6 +3136,7 @@ async function cloudLoadTrips(){
   (categoriesData || []).forEach(x => idx[x.trip_id]?.categories.push(x));
   (savingsData || []).forEach(x => idx[x.trip_id]?.savings.push(x));
   (clData || []).forEach(x => idx[x.trip_id]?.cl.push(x));
+  (remData || []).forEach(x => idx[x.trip_id]?.rem.push(x));
 
   // 4) Индексируем сегменты по ticket_id
   const segByTicket = {};
@@ -3204,11 +3256,24 @@ async function cloudLoadTrips(){
         note: tr.note || ''
       }))
     }));
-    const packing = parts.cl.filter(x => x.section === 'packing').map(x => ({
+        const packing = parts.cl.filter(x => x.section === 'packing').map(x => ({
       id: x.id, text: x.text, note: x.note, price: x.price, done: !!x.done
     }));
     const shopping = parts.cl.filter(x => x.section === 'shopping').map(x => ({
       id: x.id, text: x.text, note: x.note, price: x.price, done: !!x.done, addToBudget: !!x.add_to_budget
+    }));
+
+    const reminders = parts.rem.map(r => ({
+      id: r.id,
+      text: r.text || '',
+      note: r.note || '',
+      mode: r.mode || 'absolute',
+      at: r.at || null,
+      anchorType: r.anchor_type || null,
+      anchorId: r.anchor_id || null,
+      offsetMin: (typeof r.offset_min === 'number') ? r.offset_min : null,
+      dismissed: !!r.dismissed,
+      dismissedAt: r.dismissed_at || null
     }));
 
         return {
@@ -3229,6 +3294,7 @@ async function cloudLoadTrips(){
       activities,
       lodging,
       tickets,
+      reminders,
       budget: {
         total: t.budget_total || 0,
         categories,
@@ -3960,6 +4026,7 @@ function ensureTrip(t){
   }
   if(!Array.isArray(t.lodging)) t.lodging = [];
   if(!Array.isArray(t.tickets)) t.tickets = [];
+    if(!Array.isArray(t.reminders)) t.reminders = [];
   t.tickets = t.tickets.map(migrateTicket);
   if(!t.checklists || typeof t.checklists !== 'object') t.checklists = { packing: [], shopping: [] };
   if(!Array.isArray(t.checklists.packing)) t.checklists.packing = [];
