@@ -2042,6 +2042,161 @@ html{
     width: auto;
     margin: 0;
   }
+
+    /* Режим «в момент / до события» в модалке напоминания */
+  .rem-mode-tabs{
+    display: flex;
+    gap: 4px;
+    background: var(--bg-soft);
+    padding: 4px;
+    border-radius: 999px;
+    margin-top: 4px;
+  }
+  .rem-mode-tab{
+    flex: 1;
+    text-align: center;
+    padding: 9px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 999px;
+    transition: background .15s, color .15s;
+    border: none;
+    background: none;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .rem-mode-tab.active{
+    background: var(--bg-elev);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  .rem-mode-tab:active{ opacity: .8; }
+
+    /* =========================================================
+     БАННЕР СОЗРЕВШИХ НАПОМИНАНИЙ
+     ========================================================= */
+  .due-reminders-banner{
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translate(-50%, 120%);
+    width: min(560px, calc(100vw - 32px));
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 14px 16px 12px;
+    z-index: 999;
+    transition: transform .3s cubic-bezier(.32,.72,0,1), opacity .3s;
+    opacity: 0;
+    pointer-events: auto;
+  }
+  .due-reminders-banner.show{
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+
+  .due-reminders-head{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .due-reminders-icon{
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .due-reminders-title{
+    flex: 1;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .due-reminders-close{
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+    border-radius: 6px;
+  }
+  .due-reminders-close:hover{
+    background: var(--bg-soft);
+  }
+
+  .due-reminders-list{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .due-reminder-item{
+    background: var(--bg-soft);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+  .due-reminder-text{
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .due-reminder-meta{
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .due-reminders-more{
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+
+  .due-reminders-actions{
+    display: flex;
+    gap: 8px;
+  }
+  .due-reminders-actions .btn-mini{
+    flex: 1;
+    background: var(--bg-soft);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .due-reminders-actions .btn-mini:active{
+    background: var(--border);
+  }
+  .due-reminders-actions .btn-mini:first-child{
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  /* На планшетах и ПК — прижимаем к правому нижнему углу */
+  @media (min-width: 760px){
+    .due-reminders-banner{
+      left: auto;
+      right: 24px;
+      bottom: 24px;
+      transform: translate(120%, 0);
+    }
+    .due-reminders-banner.show{
+      transform: translate(0, 0);
+    }
+  }
 </style>
 </head>
 <body>
@@ -2371,6 +2526,93 @@ function updateBellBadge(){
   }
 }
 
+/* Показывает баннер с созревшими напоминаниями при открытии приложения.
+   Показывается один раз за сессию. */
+function maybeShowDueRemindersBanner(){
+  if(!currentUser) return;
+
+  // Флаг в sessionStorage — не показывать повторно в этой сессии
+  const FLAG = 'reminders_banner_shown';
+  if(sessionStorage.getItem(FLAG) === '1') return;
+
+  const due = collectDueReminders();
+  if(!due.length) return;
+
+  // Помечаем, что показали
+  sessionStorage.setItem(FLAG, '1');
+
+  // Показываем баннер — модалка снизу, но не как полноценная модалка,
+  // а как «липкий» баннер. Сделаем через отдельный DOM-элемент.
+  showDueRemindersBanner(due);
+}
+
+/* Показывает DOM-баннер внизу экрана. */
+function showDueRemindersBanner(due){
+  // Удаляем старый, если был
+  const old = document.getElementById('due-reminders-banner');
+  if(old) old.remove();
+
+  const MAX_SHOW = 3;
+  const shown = due.slice(0, MAX_SHOW);
+  const moreCount = due.length - shown.length;
+
+  const itemsHtml = shown.map(({ trip, reminder }) => `
+    <div class="due-reminder-item">
+      <div class="due-reminder-text">${esc(reminder.text || 'Без текста')}</div>
+      <div class="due-reminder-meta">
+        ${esc(fmtReminderAt(reminder.at))} · ${esc(trip.title)}
+      </div>
+    </div>
+  `).join('');
+
+  const banner = document.createElement('div');
+  banner.id = 'due-reminders-banner';
+  banner.className = 'due-reminders-banner';
+  banner.innerHTML = `
+    <div class="due-reminders-head">
+      <span class="due-reminders-icon">🔔</span>
+      <span class="due-reminders-title">
+        ${due.length === 1 ? 'У вас напоминание' : `У вас напоминаний: ${due.length}`}
+      </span>
+      <button class="due-reminders-close" onclick="closeDueRemindersBanner()" title="Закрыть">✕</button>
+    </div>
+    <div class="due-reminders-list">${itemsHtml}</div>
+    ${moreCount > 0 ? `<div class="due-reminders-more">и ещё ${moreCount}</div>` : ''}
+    <div class="due-reminders-actions">
+      <button class="btn-mini" onclick="closeDueRemindersBanner();openRemindersModal();">Открыть</button>
+      <button class="btn-mini" onclick="dismissAllDueReminders()">Понятно</button>
+    </div>
+  `;
+  document.body.appendChild(banner);
+
+  // Анимация появления
+  requestAnimationFrame(() => {
+    banner.classList.add('show');
+  });
+}
+
+/* Закрывает баннер (не отклоняет напоминания). */
+function closeDueRemindersBanner(){
+  const el = document.getElementById('due-reminders-banner');
+  if(!el) return;
+  el.classList.remove('show');
+  setTimeout(() => el.remove(), 300);
+}
+
+/* Помечает ВСЕ созревшие напоминания как выполненные. */
+function dismissAllDueReminders(){
+  const due = collectDueReminders();
+  due.forEach(({ trip, reminder }) => {
+    reminder.dismissed = true;
+    reminder.dismissedAt = new Date().toISOString();
+    syncTrip(trip.id);
+  });
+  closeDueRemindersBanner();
+  updateBellBadge();
+  render();
+  showToast('Напоминания отмечены как выполненные');
+}
+
 /* Считает количество «созозревших» напоминаний по всем поездкам. */
 function countDueReminders(){
   const now = Date.now();
@@ -2615,22 +2857,393 @@ function snoozeReminder(tripId, reminderId){
   openRemindersModal();
 }
 
-/* Заглушка. Настоящая модалка будет в следующем патче. */
+/* Модалка создания / редактирования напоминания.
+   tripId — id поездки (обязателен для создания и для правки).
+   reminderId — id напоминания (если редактируем).
+   Если tripId не задан — берём текущую поездку из state.tripId.
+*/
 function openReminderModal(tripId, reminderId){
-  closeModal();
+  const targetTripId = tripId || state.tripId;
+  const trip = ensureTrip(trips.find(t => t.id === targetTripId));
+  if(!trip){
+    alert('Поездка не найдена');
+    return;
+  }
+
+  const isEdit = !!reminderId;
+  const r = isEdit
+    ? (trip.reminders || []).find(x => x.id === reminderId)
+    : null;
+
+  // Собираем список событий для привязки
+  const anchors = collectReminderAnchors(trip);
+
+  // Текущие значения
+  const mode = r?.mode || 'absolute';
+  const text = r?.text || '';
+  const note = r?.note || '';
+
+  // Абсолютная дата/время
+  let absDate = '';
+  let absTime = '';
+  if(r && r.mode === 'absolute' && r.at){
+    const d = new Date(r.at);
+    absDate = d.toISOString().slice(0,10);
+    absTime = d.toTimeString().slice(0,5);
+  }
+
+  // Относительный offset
+  let relOffset = 1;
+  let relUnit = 'days'; // 'minutes' | 'hours' | 'days'
+  let relAnchorValue = '';
+  if(r && r.mode === 'relative'){
+    const total = Math.abs(r.offsetMin || 0);
+    if(total % 1440 === 0){ relOffset = total / 1440; relUnit = 'days'; }
+    else if(total % 60 === 0){ relOffset = total / 60; relUnit = 'hours'; }
+    else { relOffset = total; relUnit = 'minutes'; }
+    relAnchorValue = r.anchorId ? `${r.anchorType}::${r.anchorId}` : r.anchorType;
+  }
+
+  // Если новый — по умолчанию выберем первое доступное событие
+  if(!isEdit && anchors.length){
+    relAnchorValue = anchors[0].value;
+  }
+
+  const anchorOptions = anchors.map(a =>
+    `<option value="${esc(a.value)}" ${a.value === relAnchorValue ? 'selected' : ''}>${esc(a.label)}</option>`
+  ).join('');
+
+  openModal(`
+    <div class="modal-head">
+      <h3>${isEdit ? '🔔 Редактировать' : '🔔 Новое напоминание'}</h3>
+      <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <label>Текст</label>
+        <input id="rem-text" placeholder="Например: Взять паспорт"
+               value="${esc(text)}" maxlength="200" />
+      </div>
+
+      <div>
+        <label>Заметка (необязательно)</label>
+        <input id="rem-note" placeholder="Сборы" value="${esc(note)}" maxlength="200" />
+      </div>
+
+      <div>
+        <label>Когда напомнить</label>
+        <div class="rem-mode-tabs">
+          <button type="button" class="rem-mode-tab ${mode==='absolute'?'active':''}"
+                  data-mode="absolute" onclick="switchReminderMode('absolute')">
+            В конкретный момент
+          </button>
+          <button type="button" class="rem-mode-tab ${mode==='relative'?'active':''}"
+                  data-mode="relative" onclick="switchReminderMode('relative')">
+            За N до события
+          </button>
+        </div>
+      </div>
+
+      <div id="rem-absolute" style="display:${mode==='absolute'?'flex':'none'};flex-direction:column;gap:10px">
+        <div class="row">
+          <div><label>Дата</label><input id="rem-date" type="date" value="${esc(absDate)}" /></div>
+          <div><label>Время</label><input id="rem-time" type="time" value="${esc(absTime)}" /></div>
+        </div>
+      </div>
+
+      <div id="rem-relative" style="display:${mode==='relative'?'flex':'none'};flex-direction:column;gap:10px">
+        <div>
+          <label>Событие</label>
+          <select id="rem-anchor">
+            ${anchorOptions || '<option value="">— нет доступных событий —</option>'}
+          </select>
+        </div>
+        <div class="row">
+          <div>
+            <label>За</label>
+            <input id="rem-offset" type="number" min="1" step="1" value="${relOffset}" />
+          </div>
+          <div>
+            <label>Единица</label>
+            <select id="rem-unit">
+              <option value="minutes" ${relUnit==='minutes'?'selected':''}>минут</option>
+              <option value="hours" ${relUnit==='hours'?'selected':''}>часов</option>
+              <option value="days" ${relUnit==='days'?'selected':''}>дней</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="rem-error" style="display:none" class="auth-error"></div>
+    </div>
+    <div class="modal-foot">
+      ${isEdit ? `<button class="btn btn-danger" onclick="deleteReminder('${trip.id}','${r.id}')">Удалить</button>` : ''}
+      <button class="btn" id="rem-save-btn" onclick="saveReminder('${trip.id}','${isEdit ? r.id : ''}')">
+        Сохранить
+      </button>
+    </div>
+  `);
+
+  // Фокус на текст
   setTimeout(() => {
-    openModal(`
-      <div class="modal-head">
-        <h3>🔔 Напоминание</h3>
-        <button class="btn-ghost" onclick="closeModal()">Закрыть</button>
-      </div>
-      <div class="modal-body">
-        <p class="muted" style="margin:0;font-size:14px;line-height:1.55">
-          Форма создания и редактирования напоминаний появится в следующем обновлении.
-        </p>
-      </div>
-    `);
-  }, 150);
+    const el = document.getElementById('rem-text');
+    if(el) el.focus();
+  }, 100);
+}
+
+/* Переключает режим «в момент / до события». */
+function switchReminderMode(mode){
+  document.querySelectorAll('.rem-mode-tab').forEach(el => {
+    el.classList.toggle('active', el.dataset.mode === mode);
+  });
+  const absBox = document.getElementById('rem-absolute');
+  const relBox = document.getElementById('rem-relative');
+  if(absBox) absBox.style.display = (mode === 'absolute') ? 'flex' : 'none';
+  if(relBox) relBox.style.display = (mode === 'relative') ? 'flex' : 'none';
+}
+
+/* Собирает события, к которым можно привязать относительное напоминание.
+   Формат: [{ value, label, at, anchorType, anchorId, offsetBase }].
+   value — строка "anchorType" или "anchorType::anchorId". */
+function collectReminderAnchors(trip){
+  const out = [];
+
+  // 1) Начало поездки
+  if(trip.start){
+    const at = combineDateAndTime(trip.start, trip.dayStart || '09:00');
+    if(at) out.push({
+      value: 'trip_start',
+      label: `🚩 Начало поездки — ${fmtDateFull(at)}`,
+      at, anchorType: 'trip_start', anchorId: null
+    });
+  }
+
+  // 2) Конец поездки
+  if(trip.end){
+    const at = combineDateAndTime(trip.end, trip.dayEnd || '21:00');
+    if(at) out.push({
+      value: 'trip_end',
+      label: `🏁 Конец поездки — ${fmtDateFull(at)}`,
+      at, anchorType: 'trip_end', anchorId: null
+    });
+  }
+
+  // 3) Вылеты и прилёты билетов
+  (trip.tickets || []).forEach(tk => {
+    (tk.segments || []).forEach((sg, idx) => {
+      if(sg.departDate){
+        const at = combineDateAndTime(sg.departDate, sg.departTime || '00:00');
+        if(at) out.push({
+          value: `ticket_depart::${tk.id}::${idx}`,
+          label: `✈️ Вылет ${sg.from || '?'} → ${sg.to || '?'} — ${fmtDateFull(at)}`,
+          at, anchorType: 'ticket_depart', anchorId: `${tk.id}::${idx}`
+        });
+      }
+      if(sg.arriveDate){
+        const at = combineDateAndTime(sg.arriveDate, sg.arriveTime || '00:00');
+        if(at) out.push({
+          value: `ticket_arrive::${tk.id}::${idx}`,
+          label: `🛬 Прилёт ${sg.from || '?'} → ${sg.to || '?'} — ${fmtDateFull(at)}`,
+          at, anchorType: 'ticket_arrive', anchorId: `${tk.id}::${idx}`
+        });
+      }
+    });
+  });
+
+  // 4) Заезды/выезды жилья
+  (trip.lodging || []).forEach(l => {
+    if(l.checkInDate){
+      const at = combineDateAndTime(l.checkInDate, l.checkInTime || '14:00');
+      if(at) out.push({
+        value: `lodging_checkin::${l.id}`,
+        label: `🏠 Заезд: ${l.title || 'Жильё'} — ${fmtDateFull(at)}`,
+        at, anchorType: 'lodging_checkin', anchorId: l.id
+      });
+    }
+    if(l.checkOutDate){
+      const at = combineDateAndTime(l.checkOutDate, l.checkOutTime || '12:00');
+      if(at) out.push({
+        value: `lodging_checkout::${l.id}`,
+        label: `🏠 Выезд: ${l.title || 'Жильё'} — ${fmtDateFull(at)}`,
+        at, anchorType: 'lodging_checkout', anchorId: l.id
+      });
+    }
+  });
+
+  // 5) Конкретные места из плана
+  (trip.activities || []).forEach(a => {
+    if(a.date && a.time && !a.linkedTicketId){
+      const at = combineDateAndTime(a.date, a.time);
+      if(at) out.push({
+        value: `activity::${a.id}`,
+        label: `📍 ${a.title || 'Место'} — ${fmtDateFull(at)}`,
+        at, anchorType: 'activity', anchorId: a.id
+      });
+    }
+  });
+
+  return out;
+}
+
+/* Собирает ISO-дату из date (YYYY-MM-DD) и time (HH:MM). */
+function combineDateAndTime(date, time){
+  if(!date) return null;
+  const t = time || '00:00';
+  const d = new Date(`${date}T${t}:00`);
+  if(isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+/* Форматирует дату для селекта — компактно. */
+function fmtDateFull(iso){
+  if(!iso) return '—';
+  return new Date(iso).toLocaleString('ru-RU', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+/* Сохраняет напоминание (создание или редактирование). */
+function saveReminder(tripId, reminderId){
+  const trip = ensureTrip(trips.find(t => t.id === tripId));
+  if(!trip) return;
+
+  const text = (document.getElementById('rem-text')?.value || '').trim();
+  const note = (document.getElementById('rem-note')?.value || '').trim();
+  const mode = document.querySelector('.rem-mode-tab.active')?.dataset.mode || 'absolute';
+
+  const errorBox = document.getElementById('rem-error');
+  function showErr(msg){
+    if(errorBox){
+      errorBox.className = 'auth-error';
+      errorBox.textContent = msg;
+      errorBox.style.display = 'block';
+    }
+  }
+  function hideErr(){
+    if(errorBox) errorBox.style.display = 'none';
+  }
+  hideErr();
+
+  if(!text){
+    showErr('Введите текст напоминания');
+    return;
+  }
+
+  let at = null;
+  let anchorType = null;
+  let anchorId = null;
+  let offsetMin = null;
+
+  if(mode === 'absolute'){
+    const date = document.getElementById('rem-date')?.value || '';
+    const time = document.getElementById('rem-time')?.value || '';
+    if(!date){
+      showErr('Выберите дату');
+      return;
+    }
+    at = combineDateAndTime(date, time || '09:00');
+    if(!at){
+      showErr('Некорректная дата');
+      return;
+    }
+  } else {
+    // relative
+    const anchorValue = document.getElementById('rem-anchor')?.value || '';
+    const offset = parseInt(document.getElementById('rem-offset')?.value || '1', 10);
+    const unit = document.getElementById('rem-unit')?.value || 'days';
+
+    if(!anchorValue){
+      showErr('Выберите событие');
+      return;
+    }
+    if(isNaN(offset) || offset < 1){
+      showErr('Введите число больше 0');
+      return;
+    }
+
+    // Парсим anchorValue
+    const parts = anchorValue.split('::');
+    anchorType = parts[0];
+    anchorId = parts.length > 1 ? parts.slice(1).join('::') : null;
+
+    // Находим событие в собранном списке anchors, чтобы получить его at
+    const anchors = collectReminderAnchors(trip);
+    const anchor = anchors.find(a => a.value === anchorValue);
+    if(!anchor){
+      showErr('Событие не найдено');
+      return;
+    }
+
+    // Проверяем, что событие в будущем
+    const eventTime = new Date(anchor.at).getTime();
+    if(eventTime <= Date.now()){
+      showErr('Событие уже прошло. Напоминание не имеет смысла.');
+      return;
+    }
+
+    // Считаем offset
+    let offsetMs;
+    if(unit === 'minutes') offsetMs = offset * 60 * 1000;
+    else if(unit === 'hours') offsetMs = offset * 60 * 60 * 1000;
+    else offsetMs = offset * 24 * 60 * 60 * 1000;
+
+    const reminderTime = eventTime - offsetMs;
+    // Проверяем, что напоминание ещё в будущем
+    if(reminderTime <= Date.now()){
+      showErr('Напоминание уже было бы в прошлом. Уменьшите offset.');
+      return;
+    }
+
+    at = new Date(reminderTime).toISOString();
+    offsetMin = Math.round(offsetMs / 60000);
+  }
+
+  // Если редактируем — обновляем
+  if(reminderId){
+    const r = (trip.reminders || []).find(x => x.id === reminderId);
+    if(r){
+      Object.assign(r, {
+        text, note, mode, at,
+        anchorType, anchorId, offsetMin,
+        dismissed: false,
+        dismissedAt: null
+      });
+    }
+  } else {
+    // Создаём новое
+    if(!Array.isArray(trip.reminders)) trip.reminders = [];
+    trip.reminders.push({
+      id: uid(),
+      text, note, mode, at,
+      anchorType, anchorId, offsetMin,
+      dismissed: false,
+      dismissedAt: null
+    });
+  }
+
+  syncTrip(tripId);
+  closeModal();
+  updateBellBadge();
+  // Перерисовываем список, если открыт
+  if(document.getElementById('modal')?.classList.contains('show')){
+    // Ничего
+  }
+  render();
+  showToast('Напоминание сохранено');
+}
+
+/* Удаляет напоминание. */
+function deleteReminder(tripId, reminderId){
+  if(!confirm('Удалить это напоминание?')) return;
+  const trip = ensureTrip(trips.find(t => t.id === tripId));
+  if(!trip) return;
+  trip.reminders = (trip.reminders || []).filter(x => x.id !== reminderId);
+  syncTrip(tripId);
+  closeModal();
+  updateBellBadge();
+  render();
+  showToast('Напоминание удалено');
 }
 
 /* Выход из аккаунта. */
@@ -2649,11 +3262,12 @@ async function doSignOut(){
   state.tripId = null;
   state.tripTab = 'plan';
 
-    // Очищаем localStorage от поездок и очереди синхронизации
+      // Очищаем localStorage от поездок и очереди синхронизации
   try{
     localStorage.removeItem('trips');
     localStorage.removeItem(SYNC_QUEUE_KEY);
     sessionStorage.removeItem('migration_asked');
+    sessionStorage.removeItem('reminders_banner_shown');
   }catch(e){}
 
   // Очищаем IndexedDB с вложениями
@@ -9862,7 +10476,9 @@ function migratePrepaidExpenses(){
           console.error('Ошибка загрузки из облака:', e);
           updateSyncStatus('error');
         }
-        render();
+                render();
+        // Показываем баннер созревших напоминаний
+        setTimeout(() => maybeShowDueRemindersBanner(), 600);
         return;
       }
       if(event === 'TOKEN_REFRESHED'){
@@ -9878,6 +10494,11 @@ function migratePrepaidExpenses(){
 
   // 4) Первый рендер
   render();
+
+  // 5) Показываем баннер созревших напоминаний (один раз за сессию)
+  if(currentUser){
+    setTimeout(() => maybeShowDueRemindersBanner(), 800);
+  }
 })();
 
 /* =============== SERVICE WORKER =============== */
