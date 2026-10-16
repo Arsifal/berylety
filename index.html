@@ -2731,8 +2731,19 @@ function openProfileMenu(){
     </div>
   `);
 
-  // Загружаем статус Telegram (асинхронно)
+    // Загружаем статус Telegram (асинхронно)
   loadTelegramStatus();
+  // И обновляем раз в 5 секунд, пока открыт профиль
+  if(window._tgStatusTimer) clearInterval(window._tgStatusTimer);
+  window._tgStatusTimer = setInterval(() => {
+    // Если модалка закрылась — прекращаем
+    if(!document.getElementById('tg-link-label')){
+      clearInterval(window._tgStatusTimer);
+      window._tgStatusTimer = null;
+      return;
+    }
+    loadTelegramStatus();
+  }, 5000);
 }
 
 /* Модалка со списком всех напоминаний: созревшие + ближайшие + прошедшие. */
@@ -3261,10 +3272,9 @@ const TELEGRAM_BOT_USERNAME = 'berileti_notify_bot';
    и обновляет UI в модалке профиля. */
 async function loadTelegramStatus(){
   const label = document.getElementById('tg-link-label');
-  const hint = document.getElementById('tg-link-hint');
-  if(!label || !hint) return;
+  if(!label) return;
   if(!sb || !currentUser){
-    hint.innerHTML = '<br>Войдите в аккаунт';
+    label.innerHTML = `Подключить Telegram <span class="hint" id="tg-link-hint"><br>Войдите в аккаунт</span>`;
     return;
   }
   try{
@@ -3274,20 +3284,28 @@ async function loadTelegramStatus(){
       .eq('user_id', currentUser.id)
       .maybeSingle();
     if(error) throw error;
-    if(data){
+        if(data){
       const who = data.username ? '@' + data.username
                 : (data.first_name || 'подключено');
-      hint.innerHTML = `<br>${esc(who)} · нажмите, чтобы отключить`;
-      label.firstChild.textContent = 'Telegram подключён ';
+      label.innerHTML = `Telegram подключён <span class="hint" id="tg-link-hint"><br>${esc(who)} · нажмите, чтобы отключить</span>`;
     } else {
-      hint.innerHTML = '<br>Получать напоминания в Telegram';
-      label.firstChild.textContent = 'Подключить Telegram ';
+      label.innerHTML = `Подключить Telegram <span class="hint" id="tg-link-hint"><br>Получать напоминания в Telegram</span>`;
     }
-  }catch(e){
+    }catch(e){
     console.error('Ошибка загрузки статуса Telegram:', e);
-    hint.innerHTML = '<br>Ошибка загрузки статуса';
+    label.innerHTML = `Подключить Telegram <span class="hint" id="tg-link-hint"><br>Ошибка загрузки статуса</span>`;
   }
 }
+
+/* При возврате на страницу — обновляем статус Telegram,
+   если открыт профиль. */
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible'){
+    if(document.getElementById('tg-link-label')){
+      loadTelegramStatus();
+    }
+  }
+});
 
 /* Клик по пункту «Подключить Telegram»:
    - если уже подключён — предлагаем отключить;
