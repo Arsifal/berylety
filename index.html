@@ -2643,6 +2643,239 @@ async function fetchCloudSegmentsIds(ticketIds){
   return data || [];
 }
 
+/* Загружает одну поездку из облака и заменяет локальную. */
+async function replaceLocalTripWithCloud(tripId){
+  if(!sb || !currentUser) return;
+  const uid = currentUser.id;
+
+  const { data: t, error: tErr } = await sb
+    .from('trips')
+    .select('*')
+    .eq('id', tripId)
+    .eq('user_id', uid)
+    .single();
+  if(tErr) throw tErr;
+
+  // Тянем вложенные
+  const [
+    { data: acts },
+    { data: lodge },
+    { data: tickets },
+    { data: expenses },
+    { data: categories },
+    { data: savings },
+    { data: checklists }
+  ] = await Promise.all([
+    sb.from('activities').select('*').eq('trip_id', tripId),
+    sb.from('lodging').select('*').eq('trip_id', tripId),
+    sb.from('tickets').select('*').eq('trip_id', tripId),
+    sb.from('expenses').select('*').eq('trip_id', tripId),
+    sb.from('categories').select('*').eq('trip_id', tripId),
+    sb.from('savings').select('*').eq('trip_id', tripId),
+    sb.from('checklists').select('*').eq('trip_id', tripId)
+  ]);
+
+  // Сегменты
+  const ticketIds = (tickets || []).map(x => x.id);
+  let segments = [];
+  if(ticketIds.length){
+    const r = await sb.from('ticket_segments').select('*').in('ticket_id', ticketIds);
+    segments = r.data || [];
+  }
+
+  // Транзакции накоплений
+  const savingIds = (savings || []).map(x => x.id);
+  let savingsTx = [];
+  if(savingIds.length){
+    const r = await sb.from('savings_transactions').select('*').in('saving_id', savingIds);
+    savingsTx = r.data || [];
+  }
+
+  // Собираем trip в наш формат
+  const segByTicket = {};
+  segments.forEach(sg => {
+    if(!segByTicket[sg.ticket_id]) segByTicket[sg.ticket_id] = [];
+    segByTicket[sg.ticket_id].push(sg);
+  });
+  Object.values(segByTicket).forEach(list => list.sort((a, b) => a.idx - b.idx));
+
+  const txBySaving = {};
+  savingsTx.forEach(tr => {
+    if(!txBySaving[tr.saving_id]) txBySaving[tr.saving_id] = [];
+    txBySaving[tr.saving_id].push(tr);
+  });
+
+  const newTrip = {
+    id: t.id,
+    title: t.title || 'Без названия',
+    place: t.place || '',
+    start: t.start_date || '',
+    end: t.end_date || '',
+    notes: t.notes || '',
+    currency: t.currency || 'RUB',
+    rates: t.rates || {},
+    me: t.me || 'Я',
+    dayStart: t.day_start || '09:00',
+    dayEnd: t.day_end || '21:00',
+    lunchStart: t.lunch_start || '13:00',
+    lunchEnd: t.lunch_end || '14:00',
+    _lastSyncedAt: t.updated_at,
+    activities: (acts || []).map(a => ({
+      id: a.id, title: a.title, date: a.date || '', time: a.time || '',
+      notes: a.notes || '', lat: a.lat, lng: a.lng,
+      type: a.type || 'other', duration: a.duration || 60,
+      openFrom: a.open_from || '', openTo: a.open_to || '',
+      price: a.price || 0, addToExpense: !!a.add_to_expense,
+      checklist: a.checklist || [],
+      linkedTicketId: a.linked_ticket_id || null,
+      linkedTicketRole: a.linked_ticket_role || null,
+      linkedTicketSegmentIdx: (typeof a.linked_ticket_segment_idx === 'number') ? a.linked_ticket_segment_idx : null,
+      lockedByTicket: !!a.locked_by_ticket
+    })),
+    lodging: (lodge || []).map(l => ({
+      id: l.id, title: l.title || '', address: l.address || '',
+      lat: l.lat, lng: l.lng,
+      checkInDate: l.check_in_date || '', checkInTime: l.check_in_time || '',
+      checkOutDate: l.check_out_date || '', checkOutTime: l.check_out_time || '',
+      price: l.price || 0, priceNote: l.price_note || '',
+      link: l.link || '', notes: l.notes || '',
+      attachmentId: l.attachment_id || null,
+      attachmentName: l.attachment_name || null,
+      attachmentSize: l.attachment_size || null,
+      attachmentType: l.attachment_type || null
+    })),
+    tickets: (tickets || []).map(tk => ({
+      id: tk.id, type: tk.type || 'plane',
+      carrier: tk.carrier || '', ticketNumber: tk.ticket_number || '',
+      price: tk.price || 0, link: tk.link || '', notes: tk.notes || '',
+      toPlan: !!tk.to_plan,
+      attachmentId: tk.attachment_id || null,
+      attachmentName: tk.attachment_name || null,
+      attachmentSize: tk.attachment_size || null,
+      attachmentType: tk.attachment_type || null,
+      segments: (segByTicket[tk.id] || []).map(sg => ({
+        id: sg.id, from: sg.from_city || '', to: sg.to_city || '',
+        fromLat: sg.from_lat, fromLng: sg.from_lng,
+        toLat: sg.to_lat, toLng: sg.to_lng,
+        departDate: sg.depart_date || '', departTime: sg.depart_time || '',
+        arriveDate: sg.arrive_date || '', arriveTime: sg.arrive_time || '',
+        carrier: sg.carrier || '', number: sg.number || '', seat: sg.seat || ''
+      }))
+    })),
+    budget: {
+      total: t.budget_total || 0,
+      categories: (categories || []).map(c => ({
+        id: c.id, name: c.name || '', planned: c.planned || 0, color: c.color || '#8e8e93'
+      })),
+      expenses: (expenses || []).map(e => ({
+        id: e.id, title: e.title || '', amount: e.amount || 0,
+        date: e.date || '', categoryId: e.category_id || '',
+        note: e.note || '', priceInRUB: !!e.price_in_rub,
+        isPrepaid: !!e.is_prepaid, paidBy: e.paid_by || 'Я',
+        splitWith: e.split_with || 1,
+        linkedActivityId: e.linked_activity_id || null
+      })),
+      savings: (savings || []).map(s => ({
+        id: s.id, title: s.title || '', target: s.target || 0,
+        deadline: s.deadline || '',
+        transactions: (txBySaving[s.id] || []).map(tr => ({
+          id: tr.id, amount: tr.amount || 0,
+          date: tr.date || '', note: tr.note || ''
+        }))
+      }))
+    },
+    checklists: {
+      packing: (checklists || []).filter(x => x.section === 'packing').map(x => ({
+        id: x.id, text: x.text, note: x.note, price: x.price, done: !!x.done
+      })),
+      shopping: (checklists || []).filter(x => x.section === 'shopping').map(x => ({
+        id: x.id, text: x.text, note: x.note, price: x.price, done: !!x.done, addToBudget: !!x.add_to_budget
+      }))
+    }
+  };
+
+  // Заменяем локальную поездку
+  const idx = trips.findIndex(t => t.id === tripId);
+  if(idx >= 0) trips[idx] = newTrip;
+  else trips.push(newTrip);
+
+  DB.save(trips);
+}
+
+/* Проверяет, не изменилась ли поездка в облаке с момента
+   последней успешной синхронизации. Возвращает true, если конфликт есть.
+*/
+async function checkTripConflict(trip){
+  if(!sb || !currentUser) return false;
+  if(!trip._lastSyncedAt) return false; // ещё не синхронизировали — конфликта быть не может
+
+  try{
+    const { data, error } = await sb
+      .from('trips')
+      .select('updated_at')
+      .eq('id', trip.id)
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    if(error) return false; // при ошибке не блокируем, просто пробуем сохранить
+    if(!data) return false; // поездки в облаке нет — вставляем как новую
+
+    const cloudTime = new Date(data.updated_at).getTime();
+    const localTime = new Date(trip._lastSyncedAt).getTime();
+
+    // Если облачная новее более чем на 1 секунду — конфликт
+    // (1 секунда — запас на расхождение часов)
+    return cloudTime > localTime + 1000;
+  }catch(e){
+    console.error('Ошибка проверки конфликта:', e);
+    return false;
+  }
+}
+
+/* Показывает диалог разрешения конфликта между локальной и облачной версией.
+   Возвращает: 'local' | 'cloud' | 'both' | null (если отмена).
+*/
+function askConflictResolution(trip){
+  return new Promise((resolve) => {
+    openModal(`
+      <div class="modal-head">
+        <h3>Конфликт версий</h3>
+        <button class="btn-ghost" onclick="closeModal(); window.__resolveConflict && window.__resolveConflict(null)">Отмена</button>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-text" style="font-size:14.5px">
+          Поездка <b>«${esc(trip.title)}»</b> была изменена на другом устройстве.
+        </p>
+        <p class="muted" style="margin:8px 0 16px;font-size:13px;line-height:1.55">
+          Выберите, какую версию оставить. Если сомневаетесь — сохраните обе,
+          потом разберётесь и удалите лишнюю.
+        </p>
+      </div>
+      <div class="modal-foot" style="flex-direction:column;gap:8px">
+        <button class="btn" data-choice="local" style="width:100%">Оставить мою версию</button>
+        <button class="btn-ghost" data-choice="cloud" style="width:100%;padding:12px">Взять версию с другого устройства</button>
+        <button class="btn-ghost" data-choice="both" style="width:100%;padding:12px">Сохранить обе</button>
+      </div>
+    `);
+
+    window.__resolveConflict = (choice) => {
+      window.__resolveConflict = null;
+      resolve(choice);
+    };
+
+    const modalEl = document.getElementById('modal');
+    const handler = (e) => {
+      const btn = e.target.closest('button[data-choice]');
+      if(!btn) return;
+      modalEl.removeEventListener('click', handler);
+      const choice = btn.dataset.choice;
+      closeModal();
+      resolve(choice);
+    };
+    modalEl.addEventListener('click', handler);
+  });
+}
+
 /* Отправляет одну поездку в облако. Инкрементально:
    - inserts только новых строк
    - updates только изменённых
@@ -2788,13 +3021,16 @@ async function cloudSaveTrip(trip){
   if(txToInsert.length) ensure(await sb.from('savings_transactions').insert(txToInsert), 'savings_tx insert');
   if(txToDeleteIds.length) ensure(await sb.from('savings_transactions').delete().in('id', txToDeleteIds), 'savings_tx delete');
 
-  // 4.8. Чек-листы
+    // 4.8. Чек-листы
   if(dCl.toInsert.length) ensure(await sb.from('checklists').insert(dCl.toInsert), 'checklists insert');
   if(dCl.toUpdate.length) ensure(await sb.from('checklists').upsert(dCl.toUpdate), 'checklists update');
   if(dCl.toDelete.length) {
     const ids = dCl.toDelete.map(x => x.id);
     ensure(await sb.from('checklists').delete().in('id', ids), 'checklists delete');
   }
+
+  // Запоминаем, когда последний раз успешно синхронизировали
+  trip._lastSyncedAt = now;
 }
 
 /* Загружает все поездки пользователя из облака.
@@ -2975,7 +3211,7 @@ async function cloudLoadTrips(){
       id: x.id, text: x.text, note: x.note, price: x.price, done: !!x.done, addToBudget: !!x.add_to_budget
     }));
 
-    return {
+        return {
       id: t.id,
       title: t.title || 'Без названия',
       place: t.place || '',
@@ -2989,6 +3225,7 @@ async function cloudLoadTrips(){
       dayEnd: t.day_end || '21:00',
       lunchStart: t.lunch_start || '13:00',
       lunchEnd: t.lunch_end || '14:00',
+      _lastSyncedAt: t.updated_at,
       activities,
       lodging,
       tickets,
@@ -3108,6 +3345,7 @@ function syncTrip(tripId){
 }
 
 /* Отправляет все накопленные tripId в облако. */
+/* Отправляет все накопленные tripId в облако. */
 async function flushSyncPending(){
   const ids = Array.from(_syncPending);
   _syncPending.clear();
@@ -3126,10 +3364,91 @@ async function flushSyncPending(){
 
   updateSyncStatus('syncing');
   let failedCount = 0;
+  let conflictCount = 0;
 
   for(const id of ids){
     const trip = trips.find(t => t.id === id);
     if(!trip) continue;
+
+    // Проверяем, нет ли конфликта с облаком
+    let hasConflict = false;
+    try{
+      hasConflict = await checkTripConflict(trip);
+    }catch(e){
+      console.error('Ошибка проверки конфликта:', e);
+    }
+
+    if(hasConflict){
+      // Спрашиваем пользователя
+      const choice = await askConflictResolution(trip);
+      if(choice === null){
+        // Отмена — оставляем в очереди, попробуем в следующий раз
+        enqueueSync({ type: 'upsert', tripId: id, ts: Date.now() });
+        conflictCount++;
+        continue;
+      }
+      if(choice === 'cloud'){
+        // Взять облачную версию: не сохраняем локальную,
+        // а наоборот, подтягиваем облако и заменяем локальную
+        try{
+          await replaceLocalTripWithCloud(id);
+          dequeueSync(id);
+          conflictCount++;
+          continue;
+        }catch(e){
+          console.error('Ошибка загрузки облачной версии:', e);
+          enqueueSync({ type: 'upsert', tripId: id, ts: Date.now() });
+          failedCount++;
+          continue;
+        }
+      }
+      if(choice === 'both'){
+        // Создаём копию локальной поездки с новым id и отправляем её в облако.
+        // Облачную не трогаем. Локальную заменяем на облачную.
+        try{
+          const copy = JSON.parse(JSON.stringify(trip));
+          copy.id = uid();
+          copy.title = copy.title + ' (конфликт)';
+          delete copy._lastSyncedAt;
+          copy.activities.forEach(a => a.id = uid());
+          copy.lodging.forEach(l => l.id = uid());
+          copy.tickets.forEach(tk => {
+            const oldId = tk.id;
+            tk.id = uid();
+            (tk.segments || []).forEach(sg => {
+              sg.id = uid();
+              sg.ticketId = tk.id;
+            });
+          });
+          copy.budget.categories.forEach(c => c.id = uid());
+          copy.budget.expenses.forEach(e => e.id = uid());
+          copy.budget.savings.forEach(s => {
+            s.id = uid();
+            (s.transactions || []).forEach(tr => tr.id = uid());
+          });
+          copy.checklists.packing.forEach(x => x.id = uid());
+          copy.checklists.shopping.forEach(x => x.id = uid());
+
+          // Отправляем копию в облако
+          await cloudSaveTrip(copy);
+
+          // Заменяем локальную на облачную
+          await replaceLocalTripWithCloud(id);
+
+          dequeueSync(id);
+          conflictCount++;
+          continue;
+        }catch(e){
+          console.error('Ошибка создания копии:', e);
+          enqueueSync({ type: 'upsert', tripId: id, ts: Date.now() });
+          failedCount++;
+          continue;
+        }
+      }
+      // choice === 'local' — перезаписываем облако, как раньше
+      // (просто выходим из if и идём в try cloudSaveTrip)
+    }
+
     try{
       await cloudSaveTrip(trip);
       dequeueSync(id);
@@ -3140,11 +3459,16 @@ async function flushSyncPending(){
     }
   }
 
-  if(failedCount === 0){
+  if(failedCount === 0 && conflictCount === 0){
+    updateSyncStatus('synced', { pending: loadSyncQueue().length });
+  } else if(conflictCount > 0){
     updateSyncStatus('synced', { pending: loadSyncQueue().length });
   } else {
     updateSyncStatus('error', { pending: loadSyncQueue().length });
   }
+
+  // Обновляем UI, если что-то поменялось
+  render();
 }
 
 /* ---------- Удаление поездки из облака ---------- */
