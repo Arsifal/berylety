@@ -2715,21 +2715,24 @@ function openProfileMenu(){
         <div class="profile-email">${esc(email)}</div>
         <div class="profile-provider">через ${esc(providerLabel)}</div>
       </div>
-            <div class="menu-list">
-        <button class="menu-item" onclick="askMigrateToCloud(true)">
-          <span class="emoji">☁️</span>
-          <span class="label">Перенести поездки в аккаунт<span class="hint"><br>Загрузить локальные данные в облако</span></span>
+                  <div class="menu-list">
+        <button class="menu-item" onclick="openTelegramLink()">
+          <span class="emoji">✈️</span>
+          <span class="label" id="tg-link-label">Подключить Telegram<span class="hint" id="tg-link-hint"><br>Проверяю…</span></span>
         </button>
         <button class="menu-item" onclick="doSignOut()">
           <span class="emoji">🚪</span>
           <span class="label">Выйти из аккаунта</span>
         </button>
       </div>
-      <p class="muted" style="margin:8px 2px 0;font-size:12.5px;line-height:1.5;text-align:center">
-        Синхронизация с облаком появится в следующих обновлениях.
+            <p class="muted" style="margin:8px 2px 0;font-size:12.5px;line-height:1.5;text-align:center">
+        Данные синхронизируются между устройствами автоматически.
       </p>
     </div>
   `);
+
+  // Загружаем статус Telegram (асинхронно)
+  loadTelegramStatus();
 }
 
 /* Модалка со списком всех напоминаний: созревшие + ближайшие + прошедшие. */
@@ -3135,7 +3138,7 @@ function saveReminder(tripId, reminderId){
   let anchorId = null;
   let offsetMin = null;
 
-  if(mode === 'absolute'){
+    if(mode === 'absolute'){
     const date = document.getElementById('rem-date')?.value || '';
     const time = document.getElementById('rem-time')?.value || '';
     if(!date){
@@ -3145,6 +3148,11 @@ function saveReminder(tripId, reminderId){
     at = combineDateAndTime(date, time || '09:00');
     if(!at){
       showErr('Некорректная дата');
+      return;
+    }
+    // Проверяем, что момент в будущем
+    if(new Date(at).getTime() <= Date.now()){
+      showErr('Дата и время уже прошли. Выберите момент в будущем.');
       return;
     }
   } else {
@@ -3244,6 +3252,84 @@ function deleteReminder(tripId, reminderId){
   updateBellBadge();
   render();
   showToast('Напоминание удалено');
+}
+
+/* =============== TELEGRAM =============== */
+const TELEGRAM_BOT_USERNAME = 'berileti_notify_bot';
+
+/* Загружает статус привязки Telegram для текущего пользователя
+   и обновляет UI в модалке профиля. */
+async function loadTelegramStatus(){
+  const label = document.getElementById('tg-link-label');
+  const hint = document.getElementById('tg-link-hint');
+  if(!label || !hint) return;
+  if(!sb || !currentUser){
+    hint.innerHTML = '<br>Войдите в аккаунт';
+    return;
+  }
+  try{
+    const { data, error } = await sb
+      .from('telegram_links')
+      .select('chat_id, username, first_name, linked_at')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if(error) throw error;
+    if(data){
+      const who = data.username ? '@' + data.username
+                : (data.first_name || 'подключено');
+      hint.innerHTML = `<br>${esc(who)} · нажмите, чтобы отключить`;
+      label.firstChild.textContent = 'Telegram подключён ';
+    } else {
+      hint.innerHTML = '<br>Получать напоминания в Telegram';
+      label.firstChild.textContent = 'Подключить Telegram ';
+    }
+  }catch(e){
+    console.error('Ошибка загрузки статуса Telegram:', e);
+    hint.innerHTML = '<br>Ошибка загрузки статуса';
+  }
+}
+
+/* Клик по пункту «Подключить Telegram»:
+   - если уже подключён — предлагаем отключить;
+   - если не подключён — открываем бота с deep link. */
+async function openTelegramLink(){
+  if(!sb || !currentUser){
+    showToast('Войдите в аккаунт');
+    return;
+  }
+
+  // Проверяем, подключён ли уже
+  let linked = null;
+  try{
+    const { data } = await sb
+      .from('telegram_links')
+      .select('chat_id, username')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    linked = data;
+  }catch(e){}
+
+  if(linked){
+    // Уже подключён — предлагаем отключить
+    if(confirm('Telegram уже подключён.\n\nОтключить уведомления в Telegram?')){
+      try{
+        await sb.from('telegram_links').delete().eq('user_id', currentUser.id);
+        showToast('Telegram отключён');
+        loadTelegramStatus();
+      }catch(e){
+        console.error('Ошибка отключения Telegram:', e);
+        showToast('Не удалось отключить. Попробуйте ещё раз.');
+      }
+    }
+    return;
+  }
+
+  // Не подключён — открываем бота с deep link
+  const url = `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${encodeURIComponent(currentUser.id)}`;
+  window.open(url, '_blank', 'noopener');
+
+  // Через 3 секунды проверяем статус — может, уже подключился
+  setTimeout(() => { loadTelegramStatus(); }, 3000);
 }
 
 /* Выход из аккаунта. */
