@@ -3390,12 +3390,16 @@ async function doSignOut(){
     console.error('Ошибка signOut:', err);
   }
 
-  // Чистим кэш СТАРОГО пользователя — по сохранённому ключу
+    // ЖЕСТКАЯ ОЧИСТКА
   try{
     localStorage.removeItem(oldKey);
     localStorage.removeItem(SYNC_QUEUE_KEY);
-    sessionStorage.removeItem('migration_asked');
-    sessionStorage.removeItem('reminders_banner_shown');
+    localStorage.removeItem('berileti-auth'); // Удаляем сам токен Supabase!
+    sessionStorage.clear(); // Чистим всю сессию
+    // На всякий случай чистим все ключи с поездками
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('trips_')) localStorage.removeItem(key);
+    });
   }catch(e){}
 
   // Локальное состояние
@@ -4051,6 +4055,15 @@ async function cloudSaveTrip(trip){
   if(!sb || !currentUser) throw new Error('Не авторизован');
   const uid = currentUser.id;
   const now = new Date().toISOString();
+
+  // ЗАЩИТА: если поездка принадлежит не текущему пользователю (осталась в памяти), не сохраняем!
+  // (в Supabase все поездки имеют user_id, но если мы работаем с локальным объектом, 
+  // мы можем проверить это по наличию _lastSyncedAt или просто по id)
+  // В нашем случае проще проверить, есть ли этот trip в текущем массиве trips.
+  if (!trips.find(t => t.id === trip.id)) {
+      console.warn('Попытка сохранить чужую поездку', trip.id);
+      return; 
+  }
 
     const parts = cloudDecomposeTrip(trip);
   const tkParts = cloudDecomposeTickets(trip, uid, now);
@@ -5390,6 +5403,15 @@ const app = document.getElementById('app');
 function isDesktop(){ return window.matchMedia && window.matchMedia('(min-width: 1100px)').matches; }
 
 function render(){
+  // Защита: если мы пытаемся открыть поездку, которой нет в текущем списке — выкидываем в список
+  if(state.view === 'trip' || state.view === 'editTrip'){
+    const tripExists = trips.some(t => t.id === state.tripId);
+    if(!tripExists){
+      state.view = 'list';
+      state.tripId = null;
+    }
+  }
+
   if(state.view==='list') renderList();
   else if(state.view==='new') renderNew();
   else if(state.view==='editTrip') renderEditTrip();
