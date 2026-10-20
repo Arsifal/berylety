@@ -2215,6 +2215,7 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 
 let sb = null;           // Supabase client
 let currentUser = null;  // { id, email, ... } или null
+let authLoading = false; // true, пока идёт загрузка поездок из облака
 
 /* Переводит стандартные сообщения ошибок Supabase на русский. */
 function getAuthErrorMessage(err){
@@ -4202,6 +4203,9 @@ async function cloudSaveTrip(trip){
 async function cloudLoadTrips(){
   if(!sb || !currentUser) return [];
   const uid = currentUser.id;
+  authLoading = true;
+
+  try {
 
   // 1) Все поездки
   const { data: tripsData, error: tripsErr } = await sb
@@ -4416,9 +4420,13 @@ async function cloudLoadTrips(){
         expenses,
         savings
       },
-      checklists: { packing, shopping }
+            checklists: { packing, shopping }
     };
   });
+
+  } finally {
+    authLoading = false;
+  }
 }
 
 /* =========================================================
@@ -4518,6 +4526,9 @@ function syncTrip(tripId){
   // 2) Без аккаунта — синхронизировать некуда
   if(!sb || !currentUser) return;
 
+  // 2a) Пока идёт загрузка поездок из облака — не трогаем сеть
+  if(authLoading) return;
+
   // 3) Помечаем как «грязный» и запускаем таймер
   _syncPending.add(tripId);
 
@@ -4534,6 +4545,7 @@ async function flushSyncPending(){
   if(!ids.length) return;
 
   if(!sb || !currentUser) return;
+  if(authLoading) return;
 
   // Если офлайн — в очередь
   if(!navigator.onLine){
@@ -4924,9 +4936,20 @@ function moneyTriple(amountRUB, trip){
 }
 
 /* =============== ХРАНИЛИЩЕ =============== */
+function tripsStorageKey(){
+  return currentUser ? 'trips_' + currentUser.id : 'trips_guest';
+}
 const DB = {
-  load(){ return JSON.parse(localStorage.getItem('trips') || '[]'); },
-  save(trips){ localStorage.setItem('trips', JSON.stringify(trips)); }
+  load(){
+    try{
+      return JSON.parse(localStorage.getItem(tripsStorageKey()) || '[]');
+    }catch(e){ return []; }
+  },
+  save(trips){
+    try{
+      localStorage.setItem(tripsStorageKey(), JSON.stringify(trips));
+    }catch(e){}
+  }
 };
 let trips = DB.load();
 let state = {
@@ -6533,7 +6556,7 @@ async function geocodeTicketPoints(trip, callback){
   const missing = all.filter(name => !cache[name]);
 
   if(!missing.length){
-    if(callback) callback();
+    // Нечего догружать — НЕ вызываем callback, иначе карта перерисуется зря
     return;
   }
 
@@ -6616,25 +6639,21 @@ function renderMapTab(trip){
       clearInterval(wait);
       initTripMap(trip);
 
-      // После инициализации карты — догружаем координаты билетов
+      // После инициализации карты — догружаем координаты билетов.
+      // Callback сработает ТОЛЬКО если реально что-то догрузилось.
+      // Никаких syncTrip здесь — иначе цикл render ↔ sync.
       const status = document.getElementById('map-status-wrap');
       const missingCount = collectTicketPoints(trip).filter(n => !loadTicketGeoCache(trip)[n]).length;
       if(missingCount > 0 && status){
         status.innerHTML = `<div class="map-status">🌍 Загружаю координаты билетов (${missingCount})…</div>`;
       }
       geocodeTicketPoints(trip, ()=>{
-        // Перерисовываем маркеры, когда что-то догрузилось
+        if(!tripMap || !tripMapLayer) return;
+        if(state.tripTab !== 'map') return;
         const t2 = ensureTrip(trips.find(x => x.id === trip.id));
         renderMapTabMarkers(t2);
-        syncTrip(trip.id);
-      }).then(()=>{
-        // После завершения всех запросов — обновляем статус
-        const t2 = ensureTrip(trips.find(x => x.id === trip.id));
-        if(state.tripTab === 'map'){
-          renderMapTabMarkers(t2);
-        }
       });
-        } else if(tries > 50){
+    } else if(tries > 50){
       clearInterval(wait);
       document.getElementById('map-status-wrap').innerHTML = `<div class="map-status">⚠️ Не удалось загрузить карту.</div>`;
     }
@@ -6695,15 +6714,28 @@ function toggleMapMode(){
       state.routeDay = days.includes(today) ? today : days[0];
     }
   }
+  tripMapUserMoved = false;
   render();
 }
-function setRouteDay(d){ state.routeDay = d; render(); }
-function toggleRouteReturn(){ state.routeReturn = !state.routeReturn; render(); }
-function setRouteOrder(o){ state.routeOrder = o; render(); }
+function setRouteDay(d){ state.routeDay = d; tripMapUserMoved = false; render(); }
+function toggleRouteReturn(){ state.routeReturn = !state.routeReturn; tripMapUserMoved = false; render(); }
+function setRouteOrder(o){ state.routeOrder = o; tripMapUserMoved = false; render(); }
 function setMapFilter(f){
   state.mapFilter = f;
-  const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
-  renderMapTabMarkers(trip);
+  // Обновляем активный чип без полного render()
+  document.querySelectorAll('#map-filters .chip').forEach(el => {
+    const isAll = f === 'all' && el.textContent.trim() === 'Все';
+    const isLodge = f === 'lodging' && el.textContent.includes('Жильё');
+    const isAct = f === 'act' && el.textContent.includes('Активности');
+    const isTicket = f === 'ticket' && el.textContent.includes('Билеты');
+    el.classList.toggle('active', isAll || isLodge || isAct || isTicket);
+  });
+  // Сбрасываем «пользователь двигал карту», чтобы fitBounds сработал
+  tripMapUserMoved = false;
+  if(tripMap && tripMapLayer){
+    const trip = ensureTrip(trips.find(t=>t.id===state.tripId));
+    renderMapTabMarkers(trip);
+  }
 }
 function collectMapPoints(trip){
   const out = [];
@@ -6771,11 +6803,13 @@ function renderPoints(trip){
     document.getElementById('map-status-wrap').innerHTML = `<div class="map-status">Нет точек.</div>`;
     return;
   }
-  filtered.forEach(p => {
+    filtered.forEach(p => {
     const icon = L.divIcon({ className:'', html:`<div class="map-marker-icon ${p.type}">${p.emoji}</div>`, iconSize:[28,28], iconAnchor:[14,14] });
     L.marker([p.lat, p.lng], { icon }).addTo(tripMapLayer).bindPopup(popupHtml(p));
   });
-  tripMap.fitBounds(L.latLngBounds(filtered.map(p=>[p.lat,p.lng])).pad(0.2));
+  if(!tripMapUserMoved){
+    tripMap.fitBounds(L.latLngBounds(filtered.map(p=>[p.lat,p.lng])).pad(0.2));
+  }
   document.getElementById('map-status-wrap').innerHTML = `<div class="map-status">Точек: ${filtered.length}</div>`;
 }
 function popupHtml(p){
@@ -6902,7 +6936,9 @@ function renderRoutes(trip){
     totalPoints += route.points.length;
   });
   const allCoords = routes.flatMap(r => r.points.map(p=>[p.lat, p.lng]));
-  tripMap.fitBounds(L.latLngBounds(allCoords).pad(0.15));
+  if(!tripMapUserMoved){
+    tripMap.fitBounds(L.latLngBounds(allCoords).pad(0.15));
+  }
   let yandexLink = '';
   if(state.routeDay !== null){
     const r = routes[0];
@@ -6921,12 +6957,22 @@ function renderRoutes(trip){
       ${yandexLink}
     </div>`;
 }
+let tripMapUserMoved = false;
+
 function initTripMap(trip){
   try{
+    // Если карта уже создана в этом же DOM-контейнере — просто перерисовываем маркеры
+    const container = document.getElementById('trip-map');
+    if(tripMap && container && tripMap.getContainer() === container){
+      renderMapTabMarkers(trip);
+      return;
+    }
     if(tripMap){ tripMap.remove(); tripMap = null; }
     if(typeof L !== 'undefined') L.TileLayer.prototype.options.referrerPolicy = 'strict-origin-when-cross-origin';
     tripMap = L.map('trip-map').setView([41.7151,44.8271], 6);
     tripMapLayer = L.layerGroup().addTo(tripMap);
+    tripMapUserMoved = false;
+    tripMap.on('movestart', () => { tripMapUserMoved = true; });
     const TILE_SOURCES = [
       { url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr:'© OpenStreetMap', max:19 },
       { url:'https://tile.openstreetmap.de/{z}/{x}/{y}.png', attr:'© OpenStreetMap DE', max:19 },
@@ -10558,10 +10604,60 @@ function migratePrepaidExpenses(){
       }, 500);
     }
 
-    // 2b) Загружаем текущего пользователя
+    // 2b) СНАЧАЛА подписка на изменения авторизации
+    subscribeAuthChanges(async (event, session) => {
+      if(event === 'SIGNED_OUT'){
+        // Запоминаем ключ СТАРОГО пользователя до того, как обнулим currentUser
+        const oldKey = tripsStorageKey();
+        currentUser = null;
+        trips = [];
+        try{ localStorage.removeItem(oldKey); }catch(e){}
+        closeModal();
+        render();
+        return;
+      }
+
+      if(event === 'SIGNED_IN'){
+        currentUser = session ? session.user : null;
+
+        // Немедленно обнуляем локальные данные, чтобы не мелькали чужие
+        trips = [];
+        DB.save(trips);
+        render();
+
+        if(session && session.user){
+          const meta = session.user.user_metadata || {};
+          if(meta.full_name || meta.name){
+            showToast(`✓ Привет, ${meta.full_name || meta.name}!`);
+          }
+        }
+
+        try{
+          const cloudTrips = await cloudLoadTrips();
+          trips = cloudTrips;
+          DB.save(trips);
+          updateSyncStatus('synced');
+        }catch(e){
+          console.error('Ошибка загрузки из облака:', e);
+          // Ключ localStorage теперь привязан к новому пользователю — там пусто
+          trips = DB.load();
+          updateSyncStatus('error');
+        }
+
+        render();
+        setTimeout(() => maybeShowDueRemindersBanner(), 600);
+        return;
+      }
+
+      if(event === 'TOKEN_REFRESHED'){
+        // Молча — сессия обновилась
+      }
+    });
+
+    // 2c) Теперь загружаем текущего пользователя
     await loadCurrentUser();
 
-    // 2c) Если залогинен — тянем поездки из облака
+    // 2d) Если залогинен — тянем поездки из облака
     if(currentUser){
       try{
         const cloudTrips = await cloudLoadTrips();
@@ -10570,51 +10666,12 @@ function migratePrepaidExpenses(){
         updateSyncStatus('synced');
       }catch(e){
         console.error('Ошибка загрузки из облака:', e);
-        // Фолбэк: показываем кэш из localStorage
-        // (если он есть — он остался с прошлого входа того же пользователя)
         trips = DB.load();
         updateSyncStatus('error');
       }
     } else {
-      // Не залогинен — поездок нет
       trips = [];
     }
-
-    // 2d) Подписка на изменения авторизации
-    subscribeAuthChanges(async (event, session) => {
-      if(event === 'SIGNED_OUT'){
-        currentUser = null;
-        trips = [];
-        render();
-        return;
-      }
-      if(event === 'SIGNED_IN'){
-        currentUser = session ? session.user : null;
-        if(session && session.user){
-          const meta = session.user.user_metadata || {};
-          if(meta.full_name || meta.name){
-            showToast(`✓ Привет, ${meta.full_name || meta.name}!`);
-          }
-        }
-        // Загружаем поездки из облака
-        try{
-          const cloudTrips = await cloudLoadTrips();
-          trips = cloudTrips;
-          DB.save(trips);
-          updateSyncStatus('synced');
-        }catch(e){
-          console.error('Ошибка загрузки из облака:', e);
-          updateSyncStatus('error');
-        }
-                render();
-        // Показываем баннер созревших напоминаний
-        setTimeout(() => maybeShowDueRemindersBanner(), 600);
-        return;
-      }
-      if(event === 'TOKEN_REFRESHED'){
-        // Молча — сессия обновилась
-      }
-    });
   }
 
   // 3) Применяем миграции к тому, что загрузили
