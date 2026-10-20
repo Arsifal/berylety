@@ -3380,28 +3380,32 @@ async function openTelegramLink(){
 /* Выход из аккаунта. */
 async function doSignOut(){
   if(!sb) return;
+
+  // Запоминаем ключ ДО выхода, пока currentUser ещё указывает на старого пользователя
+  const oldKey = tripsStorageKey();
+
   try{
     await sb.auth.signOut();
   }catch(err){
     console.error('Ошибка signOut:', err);
   }
 
-  // Очищаем локальное состояние полностью
+  // Чистим кэш СТАРОГО пользователя — по сохранённому ключу
+  try{
+    localStorage.removeItem(oldKey);
+    localStorage.removeItem(SYNC_QUEUE_KEY);
+    sessionStorage.removeItem('migration_asked');
+    sessionStorage.removeItem('reminders_banner_shown');
+  }catch(e){}
+
+  // Локальное состояние
   currentUser = null;
   trips = [];
   state.view = 'list';
   state.tripId = null;
   state.tripTab = 'plan';
 
-      // Очищаем localStorage от поездок и очереди синхронизации
-  try{
-    localStorage.removeItem('trips');
-    localStorage.removeItem(SYNC_QUEUE_KEY);
-    sessionStorage.removeItem('migration_asked');
-    sessionStorage.removeItem('reminders_banner_shown');
-  }catch(e){}
-
-  // Очищаем IndexedDB с вложениями
+  // Вложения — общие для устройства, чистим полностью
   try{
     await clearAllAttachments();
   }catch(e){
@@ -3482,6 +3486,14 @@ async function loadCurrentUser(){
 function subscribeAuthChanges(onChange){
   if(!sb) return;
   sb.auth.onAuthStateChange((event, session) => {
+    const prevUser = currentUser;
+
+    // На SIGNED_OUT currentUser обнулится — но нам нужен ключ СТАРОГО пользователя,
+    // чтобы удалить его кэш поездок. Сохраняем его в глобальной переменной.
+    if(event === 'SIGNED_OUT' && prevUser){
+      window.__lastSignedOutUserId = prevUser.id;
+    }
+
     currentUser = session ? session.user : null;
     if(typeof onChange === 'function') onChange(event, session);
   });
@@ -10606,12 +10618,22 @@ function migratePrepaidExpenses(){
 
     // 2b) СНАЧАЛА подписка на изменения авторизации
     subscribeAuthChanges(async (event, session) => {
-      if(event === 'SIGNED_OUT'){
-        // Запоминаем ключ СТАРОГО пользователя до того, как обнулим currentUser
-        const oldKey = tripsStorageKey();
+            if(event === 'SIGNED_OUT'){
+        // currentUser уже null (subscribeAuthChanges обнулил его до колбэка).
+        // Берём id старого пользователя из глобала, куда его положил subscribeAuthChanges.
+        const oldUserId = window.__lastSignedOutUserId;
+        window.__lastSignedOutUserId = null;
+
         currentUser = null;
         trips = [];
-        try{ localStorage.removeItem(oldKey); }catch(e){}
+        try{
+          if(oldUserId){
+            localStorage.removeItem('trips_' + oldUserId);
+          } else {
+            // на всякий случай — не должно случаться, но пусть
+            localStorage.removeItem('trips_guest');
+          }
+        }catch(e){}
         closeModal();
         render();
         return;
@@ -10632,14 +10654,17 @@ function migratePrepaidExpenses(){
           }
         }
 
+                const expectedUid = currentUser ? currentUser.id : null;
         try{
           const cloudTrips = await cloudLoadTrips();
+          // Пока грузили — пользователь мог смениться. Если так — не применяем.
+          if(!currentUser || currentUser.id !== expectedUid) return;
           trips = cloudTrips;
           DB.save(trips);
           updateSyncStatus('synced');
         }catch(e){
+          if(!currentUser || currentUser.id !== expectedUid) return;
           console.error('Ошибка загрузки из облака:', e);
-          // Ключ localStorage теперь привязан к новому пользователю — там пусто
           trips = DB.load();
           updateSyncStatus('error');
         }
@@ -10658,13 +10683,16 @@ function migratePrepaidExpenses(){
     await loadCurrentUser();
 
     // 2d) Если залогинен — тянем поездки из облака
-    if(currentUser){
+        if(currentUser){
+      const expectedUid = currentUser.id;
       try{
         const cloudTrips = await cloudLoadTrips();
+        if(!currentUser || currentUser.id !== expectedUid) return;
         trips = cloudTrips;
         DB.save(trips);
         updateSyncStatus('synced');
       }catch(e){
+        if(!currentUser || currentUser.id !== expectedUid) return;
         console.error('Ошибка загрузки из облака:', e);
         trips = DB.load();
         updateSyncStatus('error');
