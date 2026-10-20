@@ -1,6 +1,6 @@
 // Service Worker для «Мои поездки»
 // Версия кэша. Меняй при каждом обновлении приложения — иначе старые файлы останутся в кэше!
-const CACHE_VERSION = 'trips-v40';
+const CACHE_VERSION = 'trips-v41';
 
 // Файлы, которые кэшируем при установке
 const URLS = [
@@ -32,37 +32,48 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Перехват запросов: сначала кэш, потом сеть
+// Перехват запросов
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
 
-  // Игнорируем запросы от браузерных расширений (chrome-extension://,
-  // moz-extension://) — их нельзя кэшировать, и они ломают SW.
   if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://') || url.startsWith('safari-extension://')) {
     return;
   }
 
-  // Не перехватываем запросы к API погоды и геокодингу — они всегда должны идти в сеть
   if (url.includes('nominatim.openstreetmap.org') || url.includes('api.open-meteo.com')) {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      // Если есть в кэше — отдаём из кэша
-      if (cached) return cached;
-      // Иначе идём в сеть и кэшируем ответ
-      return fetch(event.request).then((response) => {
-        // Кэшируем только успешные GET-запросы
-        if (response && response.status === 200 && event.request.method === 'GET') {
+  // HTML-навигация — network-first, чтобы всегда получать свежий index.html
+  const isHtml = event.request.mode === 'navigate'
+    || ((event.request.headers.get('accept') || '').includes('text/html'));
+
+  if (isHtml) {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response && response.status === 200) {
           const clone = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => {
-            cache.put(event.request, clone);
-          });
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
         }
         return response;
       }).catch(() => {
-        // Если сети нет и файла нет в кэше — отдаём index.html (для навигации)
+        return caches.match(event.request).then((c) => c || caches.match('./index.html'));
+      })
+    );
+    return;
+  }
+
+  // Остальное — cache-first
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        if (response && response.status === 200 && event.request.method === 'GET') {
+          const clone = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => {
         if (event.request.mode === 'navigate') {
           return caches.match('./index.html');
         }
