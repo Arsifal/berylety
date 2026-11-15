@@ -30,6 +30,7 @@ async function processReminders() {
     .lte('at', now)
     .is('sent_at', null)
     .eq('dismissed', false)
+    .order('at', { ascending: true }) // сначала самые старые
     .limit(20); // Берем пачками по 20 штук, чтобы не нагружать сервер
 
   if (remError) {
@@ -45,11 +46,13 @@ async function processReminders() {
 
   // 2. Для каждого напоминания находим chat_id пользователя
   for (const rem of dueReminders) {
-    const { data: link } = await sb
+        const { data: link } = await sb
       .from('telegram_links')
       .select('chat_id')
       .eq('user_id', rem.user_id)
-      .single();
+      .maybeSingle();
+
+    let delivered = false;
 
     if (link && link.chat_id) {
       // 3. Отправляем сообщение
@@ -58,15 +61,21 @@ async function processReminders() {
       
       try {
         await sendTelegram(link.chat_id, message);
+        delivered = true;
         console.log(`Отправлено напоминание ${rem.id}`);
       } catch (e) {
-        console.error('Ошибка отправки в ТГ:', e);
+        console.error('Ошибка отправки в ТГ (попробуем в следующий тик):', e);
       }
+    } else {
+      // Нет привязки к ТГ — помечаем как обработанное, чтобы не копить очередь
+      delivered = true;
     }
 
-    // 4. В ЛЮБОМ СЛУЧАЕ ставим sent_at, чтобы не спамить этим напоминанием каждую минуту
-    // (даже если пользователь отключил ТГ, мы просто помечаем его как обработанное)
-    await sb.from('reminders').update({ sent_at: now }).eq('id', rem.id);
+    // 4. sent_at ставим ТОЛЬКО если доставлено (или привязки нет),
+    // иначе при сбое сети напоминание сгорит навсегда.
+    if (delivered) {
+      await sb.from('reminders').update({ sent_at: now }).eq('id', rem.id);
+    }
   }
 }
 
