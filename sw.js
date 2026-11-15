@@ -1,6 +1,6 @@
 // Service Worker для «Мои поездки»
 // Версия кэша. Меняй при каждом обновлении приложения — иначе старые файлы останутся в кэше!
-const CACHE_VERSION = 'trips-v44';
+const CACHE_VERSION = 'trips-v45';
 
 // Файлы, которые кэшируем при установке
 const URLS = [
@@ -48,16 +48,18 @@ self.addEventListener('fetch', (event) => {
   const isHtml = event.request.mode === 'navigate'
     || ((event.request.headers.get('accept') || '').includes('text/html'));
 
-  if (isHtml) {
+    if (isHtml) {
     event.respondWith(
       fetch(event.request).then((response) => {
         if (response && response.status === 200) {
           const clone = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+          // Всегда кладём HTML под фиксированным ключом './index.html',
+          // чтобы fallback гарантированно его нашёл (независимо от query-string).
+          caches.open(CACHE_VERSION).then((cache) => cache.put('./index.html', clone));
         }
         return response;
       }).catch(() => {
-        return caches.match(event.request).then((c) => c || caches.match('./index.html'));
+        return caches.match('./index.html');
       })
     );
     return;
