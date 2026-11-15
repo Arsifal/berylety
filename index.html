@@ -7555,11 +7555,16 @@ function openTicketModal(id){
   draft.notes !== undefined ? esc(draft.notes) : (t ? esc(t.notes||'') : '')
 }</textarea></div>
             <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);margin-top:4px">
-        <input type="checkbox" id="tk-add-expense" style="width:auto;margin:0" ${isNew?'checked':''} />
+        <input type="checkbox" id="tk-add-expense" style="width:auto;margin:0" ${
+  draft.addExpense !== undefined ? (draft.addExpense ? 'checked' : '')
+  : (isNew || (trip.budget.expenses || []).some(e => e.id === id) ? 'checked' : '')
+} />
         Добавить стоимость в расходы
       </label>
       <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;color:var(--text);margin-top:4px">
-        <input type="checkbox" id="tk-to-plan" style="width:auto;margin:2px 0 0" ${t && t.toPlan ? 'checked' : ''} />
+        <input type="checkbox" id="tk-to-plan" style="width:auto;margin:2px 0 0" ${
+  draft.toPlan !== undefined ? (draft.toPlan ? 'checked' : '') : (t && t.toPlan ? 'checked' : '')
+} />
         <span>Добавлять в план как место
           <span class="muted" style="display:block;font-size:12px;margin-top:2px">
             Создаст в «Плане» два пункта: вылет и прилёт, с учётом даты и времени. Их не будет трогать автораспределение.
@@ -7806,7 +7811,9 @@ function openTicketPointSearch(segmentIndex, field){
     ticketNumber: tkNumber ? tkNumber.value.trim() : '',
     price: tkPrice ? parseFloat(tkPrice.value) || 0 : 0,
     link: tkLink ? tkLink.value.trim() : '',
-    notes: tkNotes ? tkNotes.value.trim() : ''
+    notes: tkNotes ? tkNotes.value.trim() : '',
+    addExpense: !!(document.getElementById('tk-add-expense') || {}).checked,
+    toPlan: !!(document.getElementById('tk-to-plan') || {}).checked
   };
 
   const sg = state.ticketSegments[segmentIndex];
@@ -8032,21 +8039,29 @@ function saveTicket(id){
 
   // Синхронизация мест-билетов в плане
   syncTicketActivities(trip, ticketId);
-  if(addExpense && price > 0){
-    let cat = trip.budget.categories.find(c => c.name.toLowerCase() === 'транспорт');
-    if(!cat){ cat = { id: uid(), name:'Транспорт', planned:0, color:'#34c759' }; trip.budget.categories.push(cat); }
-    const first = data.segments[0];
-    const last = data.segments[data.segments.length-1];
-    trip.budget.expenses.push({
-      id: uid(),
-      title: `${ticketLabel(type)}: ${first.from || '—'} → ${last.to || '—'}`,
-      amount: price,
-      date: first.departDate || todayISO(),
-      categoryId: cat.id,
-      note: ticketNumber ? `бронь ${ticketNumber}` : '',
-      priceInRUB: true,
-      isPrepaid: true
-    });
+  // Расход билета хранится с id = id билета: так он находится при редактировании
+  // (без новой колонки в облаке), обновляется, а не дублируется, и удаляется вместе с билетом.
+  {
+    const existingExp = trip.budget.expenses.find(e => e.id === ticketId);
+    if(addExpense && price > 0){
+      let cat = trip.budget.categories.find(c => c.name.toLowerCase() === 'транспорт');
+      if(!cat){ cat = { id: uid(), name:'Транспорт', planned:0, color:'#34c759' }; trip.budget.categories.push(cat); }
+      const first = data.segments[0];
+      const last = data.segments[data.segments.length-1];
+      const fields = {
+        title: `${ticketLabel(type)}: ${first.from || '—'} → ${last.to || '—'}`,
+        amount: price,
+        date: first.departDate || todayISO(),
+        categoryId: (existingExp && trip.budget.categories.some(c => c.id === existingExp.categoryId)) ? existingExp.categoryId : cat.id,
+        note: ticketNumber ? `бронь ${ticketNumber}` : '',
+        priceInRUB: true,
+        isPrepaid: true
+      };
+      if(existingExp) Object.assign(existingExp, fields);
+      else trip.budget.expenses.push({ id: ticketId, ...fields });
+    } else if(existingExp){
+      trip.budget.expenses = trip.budget.expenses.filter(e => e.id !== ticketId);
+    }
   }
   closeModal();
   render();
@@ -8062,6 +8077,7 @@ function deleteTicket(id){
   // Удаляем связанные места-билеты
   trip.activities = (trip.activities || []).filter(a => a.linkedTicketId !== id);
   trip.tickets = trip.tickets.filter(t => t.id !== id);
+  trip.budget.expenses = trip.budget.expenses.filter(e => e.id !== id);
   closeModal();
   render();
   syncTrip(trip.id);
